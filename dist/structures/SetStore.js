@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SetStore = void 0;
-class SetStore {
+export class SetStore {
     data = new Map();
     sadd(key, value) {
         if (!this.data.has(key)) {
@@ -46,4 +43,3 @@ class SetStore {
         }
     }
 }
-exports.SetStore = SetStore;

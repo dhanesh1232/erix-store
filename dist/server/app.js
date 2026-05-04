@@ -1,22 +1,19 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createApp = void 0;
-const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
-const auth_js_1 = require("./middleware/auth.js");
-const core_routes_js_1 = require("./routes/core.routes.js");
-const hash_routes_js_1 = require("./routes/hash.routes.js");
-const list_routes_js_1 = require("./routes/list.routes.js");
-const set_routes_js_1 = require("./routes/set.routes.js");
-const queue_routes_js_1 = require("./routes/queue.routes.js");
-const pubsub_routes_js_1 = require("./routes/pubsub.routes.js");
-const createApp = (store, queue, pubsub, rateLimiter) => {
-    const app = (0, express_1.default)();
-    app.use((0, cors_1.default)());
-    app.use(express_1.default.json());
+import express from "express";
+import cors from "cors";
+import { authMiddleware } from "./middleware/auth.js";
+import { createCoreRoutes } from "./routes/core.routes.js";
+import { createHashRoutes } from "./routes/hash.routes.js";
+import { createListRoutes } from "./routes/list.routes.js";
+import { createSetRoutes } from "./routes/set.routes.js";
+import { createQueueRoutes } from "./routes/queue.routes.js";
+import { createPubSubRoutes } from "./routes/pubsub.routes.js";
+import { createQueueV2Routes } from "./routes/queueV2.routes.js";
+import { createLockRoutes } from "./routes/lock.routes.js";
+import { createCacheRoutes } from "./routes/cache.routes.js";
+export const createApp = (store, queue, pubsub, rateLimiter, enhanced) => {
+    const app = express();
+    app.use(cors());
+    app.use(express.json());
     // Health & Stats (Unprotected)
     app.get("/health", (req, res) => res.json({ status: "ok", uptime: process.uptime() }));
     app.get("/stats", (req, res) => res.json({
@@ -25,13 +22,23 @@ const createApp = (store, queue, pubsub, rateLimiter) => {
         store: store.exportAll(), // Be careful with large data in production
     }));
     // Protected Routes
-    app.use(auth_js_1.authMiddleware);
-    app.use("/core", (0, core_routes_js_1.createCoreRoutes)(store));
-    app.use("/hash", (0, hash_routes_js_1.createHashRoutes)(store));
-    app.use("/list", (0, list_routes_js_1.createListRoutes)(store));
-    app.use("/set", (0, set_routes_js_1.createSetRoutes)(store));
-    app.use("/queue", (0, queue_routes_js_1.createQueueRoutes)(queue));
-    app.use("/pubsub", (0, pubsub_routes_js_1.createPubSubRoutes)(pubsub));
+    app.use(authMiddleware);
+    app.use("/core", createCoreRoutes(store));
+    app.use("/hash", createHashRoutes(store));
+    app.use("/list", createListRoutes(store));
+    app.use("/set", createSetRoutes(store));
+    app.use("/queue", createQueueRoutes(queue));
+    app.use("/pubsub", createPubSubRoutes(pubsub));
+    // Enhanced services (v2)
+    if (enhanced?.queueV2) {
+        app.use("/queue/v2", createQueueV2Routes(enhanced.queueV2));
+    }
+    if (enhanced?.lock) {
+        app.use("/lock", createLockRoutes(enhanced.lock));
+    }
+    if (enhanced?.cache) {
+        app.use("/cache", createCacheRoutes(enhanced.cache));
+    }
     // Rate Limit route
     app.post("/ratelimit", async (req, res) => {
         const { key, limit, window } = req.body;
@@ -41,4 +48,3 @@ const createApp = (store, queue, pubsub, rateLimiter) => {
     });
     return app;
 };
-exports.createApp = createApp;

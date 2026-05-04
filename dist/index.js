@@ -1,17 +1,15 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const dotenv_1 = __importDefault(require("dotenv"));
-const mongoose_1 = __importDefault(require("mongoose"));
-const app_js_1 = require("./server/app.js");
-const Store_js_1 = require("./core/Store.js");
-const JobQueue_js_1 = require("./services/JobQueue.js");
-const PubSub_js_1 = require("./services/PubSub.js");
-const RateLimiter_js_1 = require("./services/RateLimiter.js");
-const Persistence_js_1 = require("./core/Persistence.js");
-dotenv_1.default.config();
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import { createApp } from "./server/app.js";
+import { ErixStore } from "./core/Store.js";
+import { JobQueueService } from "./services/JobQueue.js";
+import { JobQueueV2 } from "./services/JobQueueV2.js";
+import { PubSubService } from "./services/PubSub.js";
+import { RateLimiterService } from "./services/RateLimiter.js";
+import { DistributedLockService } from "./services/DistributedLock.js";
+import { CacheService } from "./services/CacheService.js";
+import { PersistenceManager } from "./core/Persistence.js";
+dotenv.config();
 const PORT = process.env.PORT || 6399;
 const MONGO_URI = process.env.MONGODB_URI;
 async function bootstrap() {
@@ -21,29 +19,73 @@ async function bootstrap() {
     }
     try {
         // Connect to MongoDB
-        await mongoose_1.default.connect(MONGO_URI);
+        await mongoose.connect(MONGO_URI);
         console.log("[ErixStore] Connected to MongoDB");
         // Initialize Components
-        const store = new Store_js_1.ErixStore();
-        const queue = new JobQueue_js_1.JobQueueService();
-        const pubsub = new PubSub_js_1.PubSubService();
-        const rateLimiter = new RateLimiter_js_1.RateLimiterService();
-        const persistence = new Persistence_js_1.PersistenceManager(store, queue, rateLimiter);
+        const store = new ErixStore();
+        const queue = new JobQueueService();
+        const queueV2 = new JobQueueV2({
+            maxConcurrency: 10,
+            defaultMaxAttempts: 3,
+            retryBackoff: "exponential",
+            dlqEnabled: true,
+        });
+        const pubsub = new PubSubService();
+        const rateLimiter = new RateLimiterService();
+        const lock = new DistributedLockService();
+        const cache = new CacheService({
+            strategy: "LRU",
+            maxSize: 500 * 1024 * 1024, // 500MB
+            maxEntries: 50000,
+            defaultTTL: 3600000, // 1 hour
+            enableStats: true,
+        });
+        const persistence = new PersistenceManager(store, queue, rateLimiter);
         // Restore from snapshot
         await persistence.restore();
         // Start Auto-save (5 mins)
         persistence.startAutoSave();
+        // Setup event listeners for monitoring
+        queueV2.on("job:completed", (job) => {
+            console.log(`[Queue] Job completed: ${job.id}`);
+        });
+        queueV2.on("job:failed", (job) => {
+            console.error(`[Queue] Job failed: ${job.id} - ${job.error}`);
+        });
+        queueV2.on("job:dlq", (job) => {
+            console.error(`[Queue] Job moved to DLQ: ${job.id}`);
+        });
+        lock.on("lock:acquired", ({ key }) => {
+            console.log(`[Lock] Acquired: ${key}`);
+        });
+        cache.on("cache:evicted", ({ strategy, count }) => {
+            console.log(`[Cache] Evicted ${count} entries using ${strategy}`);
+        });
         // Create & Start Server
-        const app = (0, app_js_1.createApp)(store, queue, pubsub, rateLimiter);
+        const app = createApp(store, queue, pubsub, rateLimiter, {
+            queueV2,
+            lock,
+            cache,
+        });
         app.listen(PORT, () => {
             console.log(`🚀 ErixStore running on http://localhost:${PORT}`);
+            console.log(`📊 Features enabled:`);
+            console.log(`   - Advanced Job Queue (Priority, Delays, DLQ)`);
+            console.log(`   - Distributed Locks (Mutex, RW, Semaphore)`);
+            console.log(`   - Intelligent Cache (LRU, Tag-based)`);
+            console.log(`   - Pub/Sub Messaging`);
+            console.log(`   - Rate Limiting`);
         });
         // Graceful Shutdown
         process.on("SIGINT", async () => {
             console.log("\n[ErixStore] Shutting down...");
             persistence.stopAutoSave();
             await persistence.save();
-            await mongoose_1.default.disconnect();
+            // Cleanup services
+            queueV2.destroy();
+            lock.destroy();
+            cache.destroy();
+            await mongoose.disconnect();
             process.exit(0);
         });
     }

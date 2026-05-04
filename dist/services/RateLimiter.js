@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.RateLimiterService = void 0;
-class RateLimiterService {
+export class RateLimiterService {
     limits = new Map();
     /**
      * @param key Unique key for rate limit (e.g. tenant:id:feature)
@@ -35,4 +32,3 @@ class RateLimiterService {
         this.limits = new Map(Object.entries(data));
     }
 }
-exports.RateLimiterService = RateLimiterService;

@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.StringStore = void 0;
-class StringStore {
+export class StringStore {
     data = new Map();
     set(key, value) {
         this.data.set(key, value);
@@ -19,4 +16,3 @@ class StringStore {
         this.data = new Map(Object.entries(data));
     }
 }
-exports.StringStore = StringStore;

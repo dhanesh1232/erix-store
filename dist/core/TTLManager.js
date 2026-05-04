@@ -1,11 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TTLManager = void 0;
 /**
  * TTLManager handles expiration of keys.
  * Supports both active (sweep) and lazy expiry.
  */
-class TTLManager {
+export class TTLManager {
     expirations = new Map();
     sweepInterval = null;
     onExpire;
@@ -78,4 +75,3 @@ class TTLManager {
         this.expirations = new Map(Object.entries(data));
     }
 }
-exports.TTLManager = TTLManager;

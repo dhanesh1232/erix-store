@@ -1,21 +1,18 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ErixStore = void 0;
-const TTLManager_js_1 = require("./TTLManager.js");
-const StringStore_js_1 = require("../structures/StringStore.js");
-const HashStore_js_1 = require("../structures/HashStore.js");
-const ListStore_js_1 = require("../structures/ListStore.js");
-const SetStore_js_1 = require("../structures/SetStore.js");
-const SortedSet_js_1 = require("../structures/SortedSet.js");
-class ErixStore {
-    strings = new StringStore_js_1.StringStore();
-    hashes = new HashStore_js_1.HashStore();
-    lists = new ListStore_js_1.ListStore();
-    sets = new SetStore_js_1.SetStore();
-    sortedSets = new SortedSet_js_1.SortedSetStore();
+import { TTLManager } from "./TTLManager.js";
+import { StringStore } from "../structures/StringStore.js";
+import { HashStore } from "../structures/HashStore.js";
+import { ListStore } from "../structures/ListStore.js";
+import { SetStore } from "../structures/SetStore.js";
+import { SortedSetStore } from "../structures/SortedSet.js";
+export class ErixStore {
+    strings = new StringStore();
+    hashes = new HashStore();
+    lists = new ListStore();
+    sets = new SetStore();
+    sortedSets = new SortedSetStore();
     ttlManager;
     constructor() {
-        this.ttlManager = new TTLManager_js_1.TTLManager((key) => this.handleExpiry(key));
+        this.ttlManager = new TTLManager((key) => this.handleExpiry(key));
     }
     handleExpiry(key) {
         // Determine which store the key belongs to and delete it
@@ -55,4 +52,3 @@ class ErixStore {
             this.ttlManager.importExpirations(data.expirations);
     }
 }
-exports.ErixStore = ErixStore;

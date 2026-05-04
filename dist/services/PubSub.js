@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PubSubService = void 0;
-const events_1 = require("events");
-class PubSubService {
-    emitter = new events_1.EventEmitter();
+import { EventEmitter } from "events";
+export class PubSubService {
+    emitter = new EventEmitter();
     publish(channel, message) {
         this.emitter.emit(channel, message);
         return true;
@@ -15,4 +12,3 @@ class PubSubService {
         this.emitter.off(channel, callback);
     }
 }
-exports.PubSubService = PubSubService;

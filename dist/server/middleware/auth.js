@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getTenantKey = exports.authMiddleware = void 0;
-const authMiddleware = (req, res, next) => {
+export const authMiddleware = (req, res, next) => {
     const apiKey = req.headers["x-erix-key"];
     const tenantId = req.headers["x-tenant-id"];
     if (!apiKey || apiKey !== process.env.ERIX_API_KEY) {
@@ -14,11 +11,9 @@ const authMiddleware = (req, res, next) => {
     req.tenantId = tenantId;
     next();
 };
-exports.authMiddleware = authMiddleware;
 /**
  * Utility to prefix keys with tenantId
  */
-const getTenantKey = (tenantId, key) => {
+export const getTenantKey = (tenantId, key) => {
     return `${tenantId}:${key}`;
 };
-exports.getTenantKey = getTenantKey;

@@ -1,40 +1,40 @@
 import { Router } from "express";
-import { ErixStore } from "../../core/Store.js";
+import type { ErixStore } from "../../core/Store.js";
 import { getTenantKey } from "../middleware/auth.js";
 
 export const createCoreRoutes = (store: ErixStore) => {
-  const router = Router();
+	const router = Router();
 
-  router.post("/set", (req, res) => {
-    const { key, value, ttl } = req.body;
-    const tenantKey = getTenantKey((req as any).tenantId, key);
-    
-    store.strings.set(tenantKey, value);
-    if (ttl) {
-      store.ttlManager.set(tenantKey, ttl);
-    }
-    res.json({ success: true });
-  });
+	router.post("/set", (req, res) => {
+		const { key, value, ttl } = req.body;
+		const tenantKey = getTenantKey((req as any).tenantId, key);
 
-  router.get("/get", (req, res) => {
-    const { key } = req.query;
-    const tenantKey = getTenantKey((req as any).tenantId, key as string);
+		store.strings.set(tenantKey, value);
+		if (ttl) {
+			store.ttlManager.set(tenantKey, ttl);
+		}
+		res.json({ success: true });
+	});
 
-    if (store.isExpired(tenantKey)) {
-      return res.json({ value: null });
-    }
+	router.get("/get", (req, res) => {
+		const { key } = req.query;
+		const tenantKey = getTenantKey((req as any).tenantId, key as string);
 
-    res.json({ value: store.strings.get(tenantKey) });
-  });
+		if (store.isExpired(tenantKey)) {
+			return res.json({ value: null });
+		}
 
-  router.delete("/del", (req, res) => {
-    const { key } = req.body;
-    const tenantKey = getTenantKey((req as any).tenantId, key);
-    
-    store.strings.delete(tenantKey);
-    store.ttlManager.delete(tenantKey);
-    res.json({ success: true });
-  });
+		res.json({ value: store.strings.get(tenantKey) });
+	});
 
-  return router;
+	router.delete("/del", (req, res) => {
+		const { key } = req.body;
+		const tenantKey = getTenantKey((req as any).tenantId, key);
+
+		store.strings.delete(tenantKey);
+		store.ttlManager.delete(tenantKey);
+		res.json({ success: true });
+	});
+
+	return router;
 };

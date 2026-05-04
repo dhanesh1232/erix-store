@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.JobQueueService = void 0;
-class JobQueueService {
+export class JobQueueService {
     queues = new Map();
     push(queueName, job) {
         if (!this.queues.has(queueName)) {
@@ -30,4 +27,3 @@ class JobQueueService {
         this.queues = new Map(Object.entries(data));
     }
 }
-exports.JobQueueService = JobQueueService;

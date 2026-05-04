@@ -1,16 +1,10 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ErixClient = void 0;
-const axios_1 = __importDefault(require("axios"));
-class ErixClient {
+import axios from "axios";
+export class ErixClient {
     http;
     tenantId;
     constructor(options) {
         this.tenantId = options.tenantId;
-        this.http = axios_1.default.create({
+        this.http = axios.create({
             baseURL: options.baseUrl,
             headers: {
                 "x-erix-key": options.apiKey,
@@ -100,4 +94,3 @@ class ErixClient {
         return res.data;
     }
 }
-exports.ErixClient = ErixClient;

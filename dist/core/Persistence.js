@@ -1,16 +1,10 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PersistenceManager = exports.SnapshotModel = void 0;
-const mongoose_1 = __importDefault(require("mongoose"));
-const SnapshotSchema = new mongoose_1.default.Schema({
+import mongoose from "mongoose";
+const SnapshotSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now },
-    data: { type: mongoose_1.default.Schema.Types.Mixed, required: true },
+    data: { type: mongoose.Schema.Types.Mixed, required: true },
 });
-exports.SnapshotModel = mongoose_1.default.model("ErixSnapshot", SnapshotSchema);
-class PersistenceManager {
+export const SnapshotModel = mongoose.model("ErixSnapshot", SnapshotSchema);
+export class PersistenceManager {
     store;
     queue;
     rateLimiter;
@@ -32,15 +26,15 @@ class PersistenceManager {
                 queues: this.queue.export(),
                 rateLimits: this.rateLimiter.export(),
             };
-            await exports.SnapshotModel.create({ data: snapshotData });
+            await SnapshotModel.create({ data: snapshotData });
             console.log("[Persistence] Snapshot saved to MongoDB");
             // Cleanup old snapshots (keep last 5)
-            const count = await exports.SnapshotModel.countDocuments();
+            const count = await SnapshotModel.countDocuments();
             if (count > 5) {
-                const oldest = await exports.SnapshotModel.find()
+                const oldest = await SnapshotModel.find()
                     .sort({ timestamp: 1 })
                     .limit(count - 5);
-                await exports.SnapshotModel.deleteMany({
+                await SnapshotModel.deleteMany({
                     _id: { $in: oldest.map((s) => s._id) },
                 });
             }
@@ -52,7 +46,7 @@ class PersistenceManager {
     async restore() {
         try {
             console.log("[Persistence] Restoring from latest snapshot...");
-            const latest = await exports.SnapshotModel.findOne().sort({ timestamp: -1 });
+            const latest = await SnapshotModel.findOne().sort({ timestamp: -1 });
             if (!latest) {
                 console.log("[Persistence] No snapshot found to restore.");
                 return;
@@ -75,4 +69,3 @@ class PersistenceManager {
             clearInterval(this.saveInterval);
     }
 }
-exports.PersistenceManager = PersistenceManager;

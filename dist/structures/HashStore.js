@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.HashStore = void 0;
-class HashStore {
+export class HashStore {
     data = new Map();
     hset(key, field, value) {
         if (!this.data.has(key)) {
@@ -43,4 +40,3 @@ class HashStore {
         }
     }
 }
-exports.HashStore = HashStore;

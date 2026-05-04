@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ListStore = void 0;
-class ListStore {
+export class ListStore {
     data = new Map();
     lpush(key, value) {
         if (!this.data.has(key)) {
@@ -53,4 +50,3 @@ class ListStore {
         this.data = new Map(Object.entries(data));
     }
 }
-exports.ListStore = ListStore;

@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SortedSetStore = void 0;
-class SortedSetStore {
+export class SortedSetStore {
     data = new Map();
     zadd(key, score, value) {
         if (!this.data.has(key)) {
@@ -57,4 +54,3 @@ class SortedSetStore {
         this.data = new Map(Object.entries(data));
     }
 }
-exports.SortedSetStore = SortedSetStore;
