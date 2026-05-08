@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy manifests first for layer caching
 COPY package*.json ./
 
-# Install ALL deps (including devDeps — needed for tsc)
-RUN npm ci --ignore-scripts
+# CHANGE: Using 'npm install' instead of 'npm ci' if you don't have a lockfile
+RUN npm install --ignore-scripts
 
 # Copy source and build
 COPY . .
@@ -22,7 +22,9 @@ ENV NODE_ENV=production
 
 # Copy manifests and install prod-only deps
 COPY package*.json ./
-RUN npm ci --omit=dev --ignore-scripts
+
+# CHANGE: Using 'npm install' here as well for consistency
+RUN npm install --omit=dev --ignore-scripts
 
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
