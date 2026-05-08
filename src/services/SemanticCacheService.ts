@@ -172,7 +172,9 @@ export class SemanticCacheService {
 		});
 
 		if (!res.ok) {
-			const body = (await res.json().catch(() => ({}))) as { error?: { message: string } };
+			const body = (await res.json().catch(() => ({}))) as {
+				error?: { message: string };
+			};
 			throw new Error(
 				`[SemanticCache] Embedding API error ${res.status}: ${body.error?.message ?? res.statusText}`,
 			);

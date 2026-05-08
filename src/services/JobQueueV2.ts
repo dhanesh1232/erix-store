@@ -256,7 +256,10 @@ export class JobQueueV2 extends EventEmitter {
 						job.heartbeatAt &&
 						now - job.heartbeatAt.getTime() > this.heartbeatTimeoutMs
 					) {
-						this.fail(job.id, `Heartbeat timeout after ${this.heartbeatTimeoutMs}ms`);
+						this.fail(
+							job.id,
+							`Heartbeat timeout after ${this.heartbeatTimeoutMs}ms`,
+						);
 						this.emit("job:zombie", job);
 					}
 				}
@@ -319,7 +322,9 @@ export class JobQueueV2 extends EventEmitter {
 		queueName: string,
 		items: Array<{ data: unknown; options?: Parameters<JobQueueV2["add"]>[2] }>,
 	): Promise<Job[]> {
-		return Promise.all(items.map((item) => this.add(queueName, item.data, item.options)));
+		return Promise.all(
+			items.map((item) => this.add(queueName, item.data, item.options)),
+		);
 	}
 
 	/**
@@ -590,9 +595,11 @@ export class JobQueueV2 extends EventEmitter {
 		const d = data as Record<string, Record<string, Job[]>>;
 		if (d.queues) this.queues = new Map(Object.entries(d.queues));
 		if (d.activeJobs) this.activeJobs = new Map(Object.entries(d.activeJobs));
-		if (d.completedJobs) this.completedJobs = new Map(Object.entries(d.completedJobs));
+		if (d.completedJobs)
+			this.completedJobs = new Map(Object.entries(d.completedJobs));
 		if (d.failedJobs) this.failedJobs = new Map(Object.entries(d.failedJobs));
-		if (d.delayedJobs) this.delayedJobs = new Map(Object.entries(d.delayedJobs));
+		if (d.delayedJobs)
+			this.delayedJobs = new Map(Object.entries(d.delayedJobs));
 		if (d.dlq) this.dlq = new Map(Object.entries(d.dlq));
 	}
 

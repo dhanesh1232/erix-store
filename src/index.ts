@@ -38,8 +38,8 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY ?? "";
 
 if (!DATABASE_URL) {
-  console.error("[ErixStore] ERROR: DATABASE_URL is not set");
-  process.exit(1);
+	console.error("[ErixStore] ERROR: DATABASE_URL is not set");
+	process.exit(1);
 }
 
 // ─── In-memory services (the Redis-equivalent layer) ──────────────────────────
@@ -47,10 +47,10 @@ if (!DATABASE_URL) {
 const store = new ErixStore();
 
 const queueV2 = new JobQueueV2({
-  maxConcurrency: 10,
-  defaultMaxAttempts: 3,
-  retryBackoff: "exponential",
-  dlqEnabled: true,
+	maxConcurrency: 10,
+	defaultMaxAttempts: 3,
+	retryBackoff: "exponential",
+	dlqEnabled: true,
 });
 
 const pubsub = new PubSubService();
@@ -58,68 +58,68 @@ const rateLimiter = new RateLimiterService();
 const lock = new DistributedLockService();
 
 const cache = new CacheService({
-  strategy: "LRU",
-  maxSize: 512 * 1024 * 1024, // 512 MB
-  maxEntries: 50_000,
-  defaultTTL: 3_600_000, // 1 hour
-  enableStats: true,
+	strategy: "LRU",
+	maxSize: 512 * 1024 * 1024, // 512 MB
+	maxEntries: 50_000,
+	defaultTTL: 3_600_000, // 1 hour
+	enableStats: true,
 });
 
 // ─── AI & Analytics layer ────────────────────────────────────────────────────
 
 const anomaly = new AnomalyDetector(pubsub, {
-  windowSize: 288, // 24h at 5-min intervals
-  thresholdZ: 3.0,
-  checkIntervalMs: 5 * 60 * 1000,
+	windowSize: 288, // 24h at 5-min intervals
+	thresholdZ: 3.0,
+	checkIntervalMs: 5 * 60 * 1000,
 });
 
 // SemanticCache is optional — degrades gracefully if GOOGLE_API_KEY is missing
 const semantic = GOOGLE_API_KEY
-  ? new SemanticCacheService({
-      googleApiKey: GOOGLE_API_KEY,
-      similarityThreshold: 0.92,
-    })
-  : null;
+	? new SemanticCacheService({
+			googleApiKey: GOOGLE_API_KEY,
+			similarityThreshold: 0.92,
+		})
+	: null;
 
 if (!GOOGLE_API_KEY) {
-  console.warn("[ErixStore] GOOGLE_API_KEY not set — semantic cache disabled");
+	console.warn("[ErixStore] GOOGLE_API_KEY not set — semantic cache disabled");
 }
 
 // ─── Event wiring (monitoring + anomaly feed) ────────────────────────────────
 
 queueV2.on("job:completed", (job) => {
-  console.log(`[Queue] ✓ ${job.id}`);
+	console.log(`[Queue] ✓ ${job.id}`);
 });
 queueV2.on("job:failed", (job) => {
-  console.error(`[Queue] ✗ ${job.id} — ${job.error}`);
+	console.error(`[Queue] ✗ ${job.id} — ${job.error}`);
 });
 queueV2.on("job:dlq", (job) => {
-  console.error(`[Queue] DLQ ${job.id}`);
+	console.error(`[Queue] DLQ ${job.id}`);
 });
 queueV2.on("job:zombie", (job) => {
-  console.warn(`[Queue] Zombie reaped: ${job.id}`);
+	console.warn(`[Queue] Zombie reaped: ${job.id}`);
 });
 lock.on("lock:acquired", ({ key }: { key: string }) => {
-  console.log(`[Lock] acquired: ${key}`);
+	console.log(`[Lock] acquired: ${key}`);
 });
 cache.on(
-  "cache:evicted",
-  ({ strategy, count }: { strategy: string; count: number }) => {
-    console.log(`[Cache] evicted ${count} entries (${strategy})`);
-  },
+	"cache:evicted",
+	({ strategy, count }: { strategy: string; count: number }) => {
+		console.log(`[Cache] evicted ${count} entries (${strategy})`);
+	},
 );
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap(): Promise<void> {
-  try {
-    // Step 1: Connect to Postgres and ensure snapshot table exists
-    console.log("[ErixStore] Connecting to PostgreSQL…");
-    const pool = await createPgPool(DATABASE_URL as string);
-    console.log("[ErixStore] PostgreSQL ready ✓");
+	try {
+		// Step 1: Connect to Postgres and ensure snapshot table exists
+		console.log("[ErixStore] Connecting to PostgreSQL…");
+		const pool = await createPgPool(DATABASE_URL as string);
+		console.log("[ErixStore] PostgreSQL ready ✓");
 
-    // Ensure metering table exists (idempotent)
-    await pool.query(`
+		// Ensure metering table exists (idempotent)
+		await pool.query(`
 			CREATE TABLE IF NOT EXISTS erix_usage_events (
 				id          BIGSERIAL PRIMARY KEY,
 				tenant_id   TEXT NOT NULL,
@@ -129,82 +129,82 @@ async function bootstrap(): Promise<void> {
 			)
 		`);
 
-    // Step 2: Build persistence manager
-    const persistence = new PersistenceManager(pool, store, rateLimiter, {
-      queueV2,
-      lock,
-      cache,
-    });
+		// Step 2: Build persistence manager
+		const persistence = new PersistenceManager(pool, store, rateLimiter, {
+			queueV2,
+			lock,
+			cache,
+		});
 
-    // Step 3: Restore latest snapshot into memory
-    await persistence.restore();
+		// Step 3: Restore latest snapshot into memory
+		await persistence.restore();
 
-    // Step 4: Start periodic auto-save (every 5 minutes)
-    persistence.startAutoSave();
+		// Step 4: Start periodic auto-save (every 5 minutes)
+		persistence.startAutoSave();
 
-    // Step 5: Start usage meter (flushes to Postgres every 10s)
-    const meter = new UsageMeter(pool, anomaly);
+		// Step 5: Start usage meter (flushes to Postgres every 10s)
+		const meter = new UsageMeter(pool, anomaly);
 
-    // Step 6: Create and start HTTP server
-    const app = createApp(store, pubsub, rateLimiter, {
-      queueV2,
-      lock,
-      cache,
-      semantic: semantic ?? undefined,
-      meter,
-      anomaly,
-    });
+		// Step 6: Create and start HTTP server
+		const app = createApp(store, pubsub, rateLimiter, {
+			queueV2,
+			lock,
+			cache,
+			semantic: semantic ?? undefined,
+			meter,
+			anomaly,
+		});
 
-    const server = app.listen(PORT, () => {
-      console.log(`\n🚀 ErixStore running on port ${PORT}`);
-      console.log(`   ├─ Job Queue       (priority + DLQ + retry + heartbeat)`);
-      console.log(`   ├─ Distributed Locks  (mutex, R/W, semaphore)`);
-      console.log(`   ├─ LRU Cache       (512 MB, tag-based + SWR)`);
-      console.log(`   ├─ Pub/Sub         (event bus + SSE delivery)`);
-      console.log(`   ├─ Rate Limiter    (sliding window)`);
-      console.log(`   ├─ Anomaly Detector (Z-score, pub/sub alerts)`);
-      console.log(`   ├─ Usage Meter     (per-tenant, Postgres flush)`);
-      console.log(
-        `   ├─ Semantic Cache  (${semantic ? "✓ Google embeddings" : "✗ disabled — set GOOGLE_API_KEY"})`,
-      );
-      console.log(`   └─ Snapshots       → PostgreSQL (every 5 min)\n`);
-    });
+		const server = app.listen(PORT, () => {
+			console.log(`\n🚀 ErixStore running on port ${PORT}`);
+			console.log(`   ├─ Job Queue       (priority + DLQ + retry + heartbeat)`);
+			console.log(`   ├─ Distributed Locks  (mutex, R/W, semaphore)`);
+			console.log(`   ├─ LRU Cache       (512 MB, tag-based + SWR)`);
+			console.log(`   ├─ Pub/Sub         (event bus + SSE delivery)`);
+			console.log(`   ├─ Rate Limiter    (sliding window)`);
+			console.log(`   ├─ Anomaly Detector (Z-score, pub/sub alerts)`);
+			console.log(`   ├─ Usage Meter     (per-tenant, Postgres flush)`);
+			console.log(
+				`   ├─ Semantic Cache  (${semantic ? "✓ Google embeddings" : "✗ disabled — set GOOGLE_API_KEY"})`,
+			);
+			console.log(`   └─ Snapshots       → PostgreSQL (every 5 min)\n`);
+		});
 
-    // ─── Graceful shutdown ───────────────────────────────────────────────
-    const shutdown = async (signal: string) => {
-      console.log(`\n[ErixStore] ${signal} received — shutting down…`);
+		// ─── Graceful shutdown ───────────────────────────────────────────────
+		const shutdown = async (signal: string) => {
+			console.log(`\n[ErixStore] ${signal} received — shutting down…`);
 
-      server.close(async () => {
-        console.log("[ErixStore] HTTP server closed");
+			server.close(async () => {
+				console.log("[ErixStore] HTTP server closed");
 
-        persistence.stopAutoSave();
-        await persistence.save();
+				persistence.stopAutoSave();
+				await persistence.save();
 
-        // Destroy all timed services
-        queueV2.destroy();
-        lock.destroy();
-        cache.destroy();
-        rateLimiter.destroy();
-        anomaly.destroy();
-        meter.destroy();
+				// Destroy all timed services
+				queueV2.destroy();
+				lock.destroy();
+				cache.destroy();
+				rateLimiter.destroy();
+				anomaly.destroy();
+				meter.destroy();
 
-        await pool.end();
-        console.log("[ErixStore] Shutdown complete ✓");
-        process.exit(0);
-      });
+				await pool.end();
+				console.log("[ErixStore] Shutdown complete ✓");
+				process.exit(0);
+			});
 
-      setTimeout(() => {
-        console.error("[ErixStore] Forced exit after timeout");
-        process.exit(1);
-      }, 10_000);
-    };
+			setTimeout(() => {
+				console.error("[ErixStore] Forced exit after timeout");
+				process.exit(1);
+			}, 10_000);
+		};
 
-    process.on("SIGTERM", () => void shutdown("SIGTERM"));
-    process.on("SIGINT", () => void shutdown("SIGINT"));
-  } catch (err) {
-    console.error("[ErixStore] Bootstrap failed:", err);
-    process.exit(1);
-  }
+		process.on("SIGTERM", () => void shutdown("SIGTERM"));
+		process.on("SIGINT", () => void shutdown("SIGINT"));
+	} catch (err) {
+		console.error("[ErixStore] Bootstrap failed:", err);
+		process.exit(1);
+	}
 }
 
 bootstrap();

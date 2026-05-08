@@ -221,7 +221,10 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 		try {
 			const { jobId } = req.params;
 			const ok = queue.heartbeat(jobId);
-			if (!ok) return res.status(404).json({ success: false, error: "Job not found or not active" });
+			if (!ok)
+				return res
+					.status(404)
+					.json({ success: false, error: "Job not found or not active" });
 			res.json({ success: true });
 		} catch (error: unknown) {
 			res.status(500).json({ success: false, error: (error as Error).message });

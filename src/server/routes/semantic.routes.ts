@@ -20,7 +20,9 @@ export const createSemanticCacheRoutes = (semantic: SemanticCacheService) => {
 			};
 
 			if (!text || value === undefined) {
-				return res.status(400).json({ success: false, error: "text and value are required" });
+				return res
+					.status(400)
+					.json({ success: false, error: "text and value are required" });
 			}
 
 			await semantic.set(key, text, value, ttlMs, tags);
@@ -38,7 +40,8 @@ export const createSemanticCacheRoutes = (semantic: SemanticCacheService) => {
 		try {
 			const { key } = req.params;
 			const value = semantic.get(key);
-			if (value === null) return res.status(404).json({ success: false, error: "Not found" });
+			if (value === null)
+				return res.status(404).json({ success: false, error: "Not found" });
 			res.json({ success: true, value });
 		} catch (error: unknown) {
 			res.status(500).json({ success: false, error: (error as Error).message });
@@ -52,11 +55,20 @@ export const createSemanticCacheRoutes = (semantic: SemanticCacheService) => {
 	 */
 	router.post("/search", async (req, res) => {
 		try {
-			const { query, threshold } = req.body as { query: string; threshold?: number };
-			if (!query) return res.status(400).json({ success: false, error: "query is required" });
+			const { query, threshold } = req.body as {
+				query: string;
+				threshold?: number;
+			};
+			if (!query)
+				return res
+					.status(400)
+					.json({ success: false, error: "query is required" });
 
 			const result = await semantic.semanticGet(query, threshold);
-			if (!result) return res.status(404).json({ success: false, error: "No similar entry found" });
+			if (!result)
+				return res
+					.status(404)
+					.json({ success: false, error: "No similar entry found" });
 
 			res.json({ success: true, ...result });
 		} catch (error: unknown) {

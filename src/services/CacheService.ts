@@ -337,8 +337,6 @@ export class CacheService<T = unknown> extends EventEmitter {
 		return keysToDelete.length;
 	}
 
-
-
 	/**
 	 * Warm cache with data
 	 */

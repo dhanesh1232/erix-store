@@ -71,16 +71,16 @@ export class UsageMeter {
 		if (this.anomaly) {
 			if (event === "job_failed" || event === "job_completed") {
 				// Update anomaly detector with current failure proportion
-				const failed = buf["job_failed"] ?? 0;
-				const completed = buf["job_completed"] ?? 0;
+				const failed = buf.job_failed ?? 0;
+				const completed = buf.job_completed ?? 0;
 				const total = failed + completed;
 				if (total > 0) {
 					this.anomaly.record(tenantId, "job_failure_rate", failed / total);
 				}
 			}
 			if (event === "cache_get_hit" || event === "cache_get_miss") {
-				const hits = buf["cache_get_hit"] ?? 0;
-				const misses = buf["cache_get_miss"] ?? 0;
+				const hits = buf.cache_get_hit ?? 0;
+				const misses = buf.cache_get_miss ?? 0;
 				const total = hits + misses;
 				if (total > 0) {
 					this.anomaly.record(tenantId, "cache_miss_rate", misses / total);

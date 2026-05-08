@@ -82,7 +82,10 @@ export const createApp = (
 
 	// Analytics + Anomaly detection
 	if (services.meter && services.anomaly) {
-		app.use("/analytics", createAnalyticsRoutes(services.meter, services.anomaly));
+		app.use(
+			"/analytics",
+			createAnalyticsRoutes(services.meter, services.anomaly),
+		);
 	}
 
 	// Platform stats (process-level, protected)

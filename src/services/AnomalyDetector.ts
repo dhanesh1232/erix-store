@@ -50,7 +50,11 @@ export class AnomalyDetector {
 
 	constructor(
 		pubsub: PubSubService,
-		options: { windowSize?: number; thresholdZ?: number; checkIntervalMs?: number } = {},
+		options: {
+			windowSize?: number;
+			thresholdZ?: number;
+			checkIntervalMs?: number;
+		} = {},
 	) {
 		this.pubsub = pubsub;
 		this.windowSize = options.windowSize ?? 288;
@@ -91,7 +95,10 @@ export class AnomalyDetector {
 	/**
 	 * Get current stats for a metric.
 	 */
-	stats(tenantId: string, metric: string): { mean: number; stddev: number; n: number } | null {
+	stats(
+		tenantId: string,
+		metric: string,
+	): { mean: number; stddev: number; n: number } | null {
 		const win = this.windows.get(`${tenantId}:${metric}`);
 		if (!win || win.samples.length < 10) return null; // need at least 10 samples
 		return computeStats(win);
@@ -100,7 +107,13 @@ export class AnomalyDetector {
 	/**
 	 * All active windows — used by /analytics/anomalies endpoint.
 	 */
-	allStats(): Array<{ tenantId: string; metric: string; mean: number; stddev: number; n: number }> {
+	allStats(): Array<{
+		tenantId: string;
+		metric: string;
+		mean: number;
+		stddev: number;
+		n: number;
+	}> {
 		const result = [];
 		for (const [key, win] of this.windows.entries()) {
 			if (win.samples.length < 10) continue;
@@ -144,24 +157,36 @@ export class AnomalyDetector {
 
 			// Publish to tenant-specific channel — SSE clients get it in real time
 			this.pubsub.publish(`${tenantId}:anomaly`, alert as unknown as object);
-			console.warn(`[Anomaly] ${tenantId} | ${metric} | z=${z.toFixed(2)} | ${alert.message}`);
+			console.warn(
+				`[Anomaly] ${tenantId} | ${metric} | z=${z.toFixed(2)} | ${alert.message}`,
+			);
 		}
 	}
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function computeStats(win: RollingWindow): { mean: number; stddev: number; n: number } {
+function computeStats(win: RollingWindow): {
+	mean: number;
+	stddev: number;
+	n: number;
+} {
 	const n = win.samples.length;
 	const mean = win.sum / n;
 	const variance = win.sumSq / n - mean * mean;
 	return { mean, stddev: Math.sqrt(Math.max(0, variance)), n };
 }
 
-function buildMessage(metric: string, current: number, mean: number, z: number): string {
+function buildMessage(
+	metric: string,
+	current: number,
+	mean: number,
+	z: number,
+): string {
 	const pct = mean > 0 ? Math.round((current / mean - 1) * 100) : 0;
 	const dir = current > mean ? "above" : "below";
-	const fmt = (v: number) => (v < 1 ? `${(v * 100).toFixed(1)}%` : v.toFixed(0));
+	const fmt = (v: number) =>
+		v < 1 ? `${(v * 100).toFixed(1)}%` : v.toFixed(0);
 
 	return `${metric} is ${fmt(current)} — ${Math.abs(pct)}% ${dir} normal (z=${z.toFixed(1)})`;
 }
