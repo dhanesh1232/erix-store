@@ -7,7 +7,7 @@ export const createCoreRoutes = (store: ErixStore) => {
 
 	router.post("/set", (req, res) => {
 		const { key, value, ttl } = req.body;
-		const tenantKey = getTenantKey((req as any).tenantId, key);
+		const tenantKey = getTenantKey(req.tenantId, key);
 
 		store.strings.set(tenantKey, value);
 		if (ttl) {
@@ -18,7 +18,7 @@ export const createCoreRoutes = (store: ErixStore) => {
 
 	router.get("/get", (req, res) => {
 		const { key } = req.query;
-		const tenantKey = getTenantKey((req as any).tenantId, key as string);
+		const tenantKey = getTenantKey(req.tenantId, key as string);
 
 		if (store.isExpired(tenantKey)) {
 			return res.json({ value: null });
@@ -29,7 +29,7 @@ export const createCoreRoutes = (store: ErixStore) => {
 
 	router.delete("/del", (req, res) => {
 		const { key } = req.body;
-		const tenantKey = getTenantKey((req as any).tenantId, key);
+		const tenantKey = getTenantKey(req.tenantId, key);
 
 		store.strings.delete(tenantKey);
 		store.ttlManager.delete(tenantKey);

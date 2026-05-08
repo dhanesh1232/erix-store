@@ -86,7 +86,7 @@ export class ErixClient {
             }
         },
     };
-    // Queue Operations (Legacy Mapper to List)
+    // Queue Operations (maps to list under the hood — like Redis LPUSH/RPOP)
     queue = {
         push: async (name, data) => {
             await this.list.rpush(`q:${name}`, data);

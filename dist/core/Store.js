@@ -38,17 +38,20 @@ export class ErixStore {
         };
     }
     importAll(data) {
-        if (data.strings)
-            this.strings.import(data.strings);
-        if (data.hashes)
-            this.hashes.import(data.hashes);
-        if (data.lists)
-            this.lists.import(data.lists);
-        if (data.sets)
-            this.sets.import(data.sets);
-        if (data.sortedSets)
-            this.sortedSets.import(data.sortedSets);
-        if (data.expirations)
-            this.ttlManager.importExpirations(data.expirations);
+        if (!data || typeof data !== "object")
+            return;
+        const d = data;
+        if (d.strings)
+            this.strings.import(d.strings);
+        if (d.hashes)
+            this.hashes.import(d.hashes);
+        if (d.lists)
+            this.lists.import(d.lists);
+        if (d.sets)
+            this.sets.import(d.sets);
+        if (d.sortedSets)
+            this.sortedSets.import(d.sortedSets);
+        if (d.expirations)
+            this.ttlManager.importExpirations(d.expirations);
     }
 }

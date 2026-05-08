@@ -18,6 +18,7 @@ export class ListStore {
 	lpop(key: string): string | null {
 		const list = this.data.get(key);
 		if (!list || list.length === 0) return null;
+		// biome-ignore lint/style/noNonNullAssertion: list.length > 0 is verified above
 		const value = list.shift()!;
 		if (list.length === 0) this.data.delete(key);
 		return value;
@@ -26,6 +27,7 @@ export class ListStore {
 	rpop(key: string): string | null {
 		const list = this.data.get(key);
 		if (!list || list.length === 0) return null;
+		// biome-ignore lint/style/noNonNullAssertion: list.length > 0 is verified above
 		const value = list.pop()!;
 		if (list.length === 0) this.data.delete(key);
 		return value;

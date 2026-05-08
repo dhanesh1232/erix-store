@@ -7,16 +7,15 @@ export const createPubSubRoutes = (pubsub: PubSubService) => {
 
 	router.post("/publish", (req, res) => {
 		const { channel, message } = req.body;
-		const tenantChannel = getTenantKey((req as any).tenantId, channel);
+		const tenantChannel = getTenantKey(req.tenantId, channel);
 		pubsub.publish(tenantChannel, message);
 		res.json({ success: true });
 	});
 
-	// Note: Subscription via HTTP is usually handled via WebSockets or Webhooks.
-	// For now, we'll just log the subscription request.
+	// Subscription via HTTP is stateless — real-time via WebSockets/SSE in future
 	router.post("/subscribe", (req, res) => {
 		const { channel } = req.body;
-		const tenantChannel = getTenantKey((req as any).tenantId, channel);
+		const tenantChannel = getTenantKey(req.tenantId, channel);
 		console.log(`[PubSub] Subscription request for ${tenantChannel}`);
 		res.json({ success: true, message: "Subscription registered (Internal)" });
 	});

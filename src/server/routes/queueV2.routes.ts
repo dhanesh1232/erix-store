@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { Router as createRouter } from "express";
-import type { JobQueueV2 } from "../../services/JobQueueV2.js";
+import type { Job, JobQueueV2 } from "../../services/JobQueueV2.js";
 
 export function createQueueV2Routes(queue: JobQueueV2): Router {
 	const router = createRouter();
@@ -32,8 +32,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			});
 
 			res.json({ success: true, job });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -51,8 +51,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			}
 
 			res.json({ success: true, job });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -65,8 +65,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			const { queueName } = req.params;
 			const metrics = queue.getMetrics(queueName);
 			res.json({ success: true, metrics });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -78,10 +78,10 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 		try {
 			const { queueName } = req.params;
 			const { status } = req.query;
-			const jobs = queue.getJobs(queueName, status as any);
+			const jobs = queue.getJobs(queueName, status as Job["status"]);
 			res.json({ success: true, jobs, count: jobs.length });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -96,8 +96,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 
 			queue.updateProgress(jobId, progress);
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -117,8 +117,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -131,8 +131,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			const { queueName } = req.params;
 			const count = queue.retryDLQ(queueName);
 			res.json({ success: true, count });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -145,8 +145,8 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 			const { queueName } = req.params;
 			const count = queue.clearCompleted(queueName);
 			res.json({ success: true, count });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 

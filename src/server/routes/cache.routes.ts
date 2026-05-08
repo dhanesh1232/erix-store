@@ -19,8 +19,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			}
 
 			res.json({ success: true, value });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -35,8 +35,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 
 			cache.set(key, value, { ttl, tags, metadata });
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -54,8 +54,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -73,7 +73,7 @@ export function createCacheRoutes(cache: CacheService): Router {
 			}
 
 			res.status(200).end();
-		} catch (_error: any) {
+		} catch (_error: unknown) {
 			res.status(500).end();
 		}
 	});
@@ -89,8 +89,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const data = Object.fromEntries(result);
 
 			res.json({ success: true, data });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -103,8 +103,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const { entries } = req.body;
 			cache.mset(entries);
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -117,8 +117,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const { tag } = req.params;
 			const count = cache.invalidateByTag(tag);
 			res.json({ success: true, count });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -131,8 +131,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const { tags } = req.body;
 			const count = cache.invalidateByTags(tags);
 			res.json({ success: true, count });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -145,8 +145,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const { pattern } = req.body;
 			const count = cache.invalidateByPattern(pattern);
 			res.json({ success: true, count });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -158,8 +158,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 		try {
 			const stats = cache.getStats();
 			res.json({ success: true, stats });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -171,8 +171,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 		try {
 			cache.resetStats();
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -184,8 +184,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 		try {
 			const keys = cache.keys();
 			res.json({ success: true, keys, count: keys.length });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -198,8 +198,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			const { tag } = req.params;
 			const keys = cache.keysByTag(tag);
 			res.json({ success: true, keys, count: keys.length });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -217,8 +217,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 			}
 
 			res.json({ success: true, entry });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -230,8 +230,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 		try {
 			const memory = cache.getMemoryUsage();
 			res.json({ success: true, memory });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -243,8 +243,8 @@ export function createCacheRoutes(cache: CacheService): Router {
 		try {
 			cache.clear();
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 

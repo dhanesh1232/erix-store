@@ -1,0 +1,34 @@
+# render.yaml — erix-store Render deployment definition
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: erix-store
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+
+    # Render sets PORT automatically — erix-store reads process.env.PORT
+    # Health check — Render will route traffic only after this passes
+    healthCheckPath: /health
+
+    # Auto-deploy on push to main
+    branch: main
+    autoDeploy: true
+
+    # Environment variables — fill values in the Render dashboard
+    # Never commit real values here
+    envVars:
+      - key: DATABASE_URL
+        # Your Supabase (or Render Postgres) connection string
+        # postgresql://user:pass@host:5432/dbname
+        sync: false
+
+      - key: ERIX_API_KEY
+        # Strong random secret — same value used in server's ERIX_STORE_API_KEY
+        sync: false
+
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: "6399"

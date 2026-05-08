@@ -17,7 +17,7 @@ export const authMiddleware = (
 	}
 
 	// Attach to request for use in routes
-	(req as any).tenantId = tenantId;
+	req.tenantId = tenantId;
 	next();
 };
 

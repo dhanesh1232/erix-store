@@ -42,8 +42,7 @@ export const createApp = (store, pubsub, rateLimiter, enhanced) => {
     // Rate Limit route
     app.post("/ratelimit", async (req, res) => {
         const { key, limit, window } = req.body;
-        const tenantId = req.tenantId;
-        const result = await rateLimiter.check(`${tenantId}:${key}`, limit, window);
+        const result = await rateLimiter.check(`${req.tenantId}:${key}`, limit, window);
         res.json(result);
     });
     return app;

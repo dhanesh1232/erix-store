@@ -27,8 +27,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true, token });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -48,8 +48,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -69,8 +69,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -91,8 +91,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true, token });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -112,8 +112,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -134,8 +134,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true, token });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -155,8 +155,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -180,8 +180,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true, token });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -201,8 +201,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -217,8 +217,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			const info = lock.getLockInfo(key);
 
 			res.json({ success: true, isLocked, info });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -230,8 +230,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 		try {
 			const locks = lock.getAllLocks();
 			res.json({ success: true, locks, count: locks.length });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -243,8 +243,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 		try {
 			const deadlocks = lock.detectDeadlocks();
 			res.json({ success: true, deadlocks, count: deadlocks.length });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 
@@ -264,8 +264,8 @@ export function createLockRoutes(lock: DistributedLockService): Router {
 			}
 
 			res.json({ success: true });
-		} catch (error: any) {
-			res.status(500).json({ success: false, error: error.message });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
 		}
 	});
 

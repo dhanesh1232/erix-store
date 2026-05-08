@@ -43,12 +43,28 @@ export class ErixStore {
 		};
 	}
 
-	importAll(data: any) {
-		if (data.strings) this.strings.import(data.strings);
-		if (data.hashes) this.hashes.import(data.hashes);
-		if (data.lists) this.lists.import(data.lists);
-		if (data.sets) this.sets.import(data.sets);
-		if (data.sortedSets) this.sortedSets.import(data.sortedSets);
-		if (data.expirations) this.ttlManager.importExpirations(data.expirations);
+	importAll(data: unknown) {
+		if (!data || typeof data !== "object") return;
+		const d = data as Record<string, unknown>;
+		if (d.strings)
+			this.strings.import(
+				d.strings as Parameters<typeof this.strings.import>[0],
+			);
+		if (d.hashes)
+			this.hashes.import(d.hashes as Parameters<typeof this.hashes.import>[0]);
+		if (d.lists)
+			this.lists.import(d.lists as Parameters<typeof this.lists.import>[0]);
+		if (d.sets)
+			this.sets.import(d.sets as Parameters<typeof this.sets.import>[0]);
+		if (d.sortedSets)
+			this.sortedSets.import(
+				d.sortedSets as Parameters<typeof this.sortedSets.import>[0],
+			);
+		if (d.expirations)
+			this.ttlManager.importExpirations(
+				d.expirations as Parameters<
+					typeof this.ttlManager.importExpirations
+				>[0],
+			);
 	}
 }

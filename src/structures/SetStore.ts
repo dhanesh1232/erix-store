@@ -5,7 +5,9 @@ export class SetStore {
 		if (!this.data.has(key)) {
 			this.data.set(key, new Set());
 		}
-		const set = this.data.get(key)!;
+		// Guaranteed non-null: we just set() the key above if it was missing
+		const set = this.data.get(key) ?? new Set<string>();
+		if (!this.data.has(key)) this.data.set(key, set);
 		const sizeBefore = set.size;
 		set.add(value);
 		return set.size - sizeBefore;
