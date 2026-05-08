@@ -57,6 +57,8 @@ export class JobQueueV2 extends EventEmitter {
 	private failedJobs = new Map<string, Job[]>();
 	private delayedJobs = new Map<string, Job[]>();
 	private dlq = new Map<string, Job[]>(); // Dead Letter Queue
+	private tenantActiveCounts = new Map<string, number>();
+	private maxParallelPerTenant = 50;
 	private options: Required<JobQueueOptions>;
 	private processingInterval?: NodeJS.Timeout;
 
@@ -163,6 +165,12 @@ export class JobQueueV2 extends EventEmitter {
 			job.completedAt = new Date();
 			job.result = result;
 
+			const tenantId = job.clientCode || "unknown";
+			this.tenantActiveCounts.set(
+				tenantId,
+				Math.max(0, (this.tenantActiveCounts.get(tenantId) || 0) - 1),
+			);
+
 			this.removeFromActive(job.queueName, job.id);
 			this.addToCompleted(job.queueName, job);
 
@@ -170,6 +178,12 @@ export class JobQueueV2 extends EventEmitter {
 		} catch (error: any) {
 			job.error = error.message;
 			job.failedAt = new Date();
+
+			const tenantId = job.clientCode || "unknown";
+			this.tenantActiveCounts.set(
+				tenantId,
+				Math.max(0, (this.tenantActiveCounts.get(tenantId) || 0) - 1),
+			);
 
 			this.removeFromActive(job.queueName, job.id);
 
@@ -212,7 +226,17 @@ export class JobQueueV2 extends EventEmitter {
 			return a.createdAt.getTime() - b.createdAt.getTime();
 		});
 
-		return queue.shift() ?? null;
+		// Fairness: find first job whose tenant isn't saturated
+		const jobIndex = queue.findIndex((job) => {
+			const tenantId = job.clientCode || "unknown";
+			const activeCount = this.tenantActiveCounts.get(tenantId) || 0;
+			return activeCount < this.maxParallelPerTenant;
+		});
+
+		if (jobIndex === -1) return null;
+
+		const [job] = queue.splice(jobIndex, 1);
+		return job;
 	}
 
 	/**
@@ -226,6 +250,12 @@ export class JobQueueV2 extends EventEmitter {
 		job.status = "active";
 		job.startedAt = new Date();
 		job.attempts++;
+
+		const tenantId = job.clientCode || "unknown";
+		this.tenantActiveCounts.set(
+			tenantId,
+			(this.tenantActiveCounts.get(tenantId) || 0) + 1,
+		);
 
 		this.addToActive(queueName, job);
 		this.emit("job:active", job);
@@ -242,6 +272,12 @@ export class JobQueueV2 extends EventEmitter {
 		job.status = "completed";
 		job.completedAt = new Date();
 		job.result = result;
+
+		const tenantId = job.clientCode || "unknown";
+		this.tenantActiveCounts.set(
+			tenantId,
+			Math.max(0, (this.tenantActiveCounts.get(tenantId) || 0) - 1),
+		);
 
 		this.removeFromActive(job.queueName, job.id);
 		this.addToCompleted(job.queueName, job);
@@ -272,6 +308,13 @@ export class JobQueueV2 extends EventEmitter {
 		} else {
 			// Max attempts reached
 			job.status = "failed";
+
+			const tenantId = job.clientCode || "unknown";
+			this.tenantActiveCounts.set(
+				tenantId,
+				Math.max(0, (this.tenantActiveCounts.get(tenantId) || 0) - 1),
+			);
+
 			this.addToFailed(job.queueName, job);
 
 			// Move to DLQ if enabled

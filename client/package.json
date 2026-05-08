@@ -1,6 +1,6 @@
 {
   "name": "@ecodrix/erix-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Type-safe HTTP client for the erix-store in-memory data service. Zero dependencies — uses native fetch.",
   "type": "module",
   "main": "./dist/index.js",
