@@ -1,31 +1,32 @@
 {
-  "name": "erix-store",
-  "version": "1.0.0",
-  "description": "In-memory store for ECODrIx platform",
-  "main": "dist/index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "lint": "biome lint .",
-    "format": "biome format . --write",
-    "check": "biome check . --write"
-  },
-  "dependencies": {
-    "axios": "^1.6.8",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "events": "^3.3.0",
-    "express": "^4.19.2",
-    "mongoose": "^8.3.2"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.4.14",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.12.7",
-    "tsx": "^4.7.2",
-    "typescript": "^5.4.5"
-  }
+	"name": "erix-store",
+	"version": "1.0.0",
+	"description": "In-memory store for ECODrIx platform",
+	"main": "dist/index.js",
+	"type": "module",
+	"scripts": {
+		"start": "node dist/index.js",
+		"dev": "tsx watch src/index.ts",
+		"build": "tsc",
+		"lint": "biome lint .",
+		"format": "biome format . --write",
+		"check": "biome check . --write",
+		"type": "tsc --noEmit"
+	},
+	"dependencies": {
+		"axios": "^1.6.8",
+		"cors": "^2.8.5",
+		"dotenv": "^16.4.5",
+		"events": "^3.3.0",
+		"express": "^4.19.2",
+		"mongoose": "^8.3.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.14",
+		"@types/cors": "^2.8.17",
+		"@types/express": "^4.17.21",
+		"@types/node": "^20.12.7",
+		"tsx": "^4.7.2",
+		"typescript": "^5.4.5"
+	}
 }
