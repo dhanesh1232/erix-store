@@ -200,7 +200,7 @@ export class JobQueueV2 extends EventEmitter {
 	/**
 	 * Pop next job from queue (priority-based)
 	 */
-	private pop(queueName: string): Job | null {
+	public pop(queueName: string): Job | null {
 		const queue = this.queues.get(queueName);
 		if (!queue || queue.length === 0) return null;
 
@@ -213,6 +213,76 @@ export class JobQueueV2 extends EventEmitter {
 		});
 
 		return queue.shift() ?? null;
+	}
+
+	/**
+	 * Claim the next job from the queue.
+	 * Marks the job as active and returns it.
+	 */
+	public claim(queueName: string): Job | null {
+		const job = this.pop(queueName);
+		if (!job) return null;
+
+		job.status = "active";
+		job.startedAt = new Date();
+		job.attempts++;
+
+		this.addToActive(queueName, job);
+		this.emit("job:active", job);
+		return job;
+	}
+
+	/**
+	 * Mark a job as completed
+	 */
+	public complete(jobId: string, result?: any): boolean {
+		const job = this.getJob(jobId);
+		if (!job || job.status !== "active") return false;
+
+		job.status = "completed";
+		job.completedAt = new Date();
+		job.result = result;
+
+		this.removeFromActive(job.queueName, job.id);
+		this.addToCompleted(job.queueName, job);
+		this.emit("job:completed", job);
+		return true;
+	}
+
+	/**
+	 * Mark a job as failed
+	 */
+	public fail(jobId: string, error: string): boolean {
+		const job = this.getJob(jobId);
+		if (!job || job.status !== "active") return false;
+
+		job.error = error;
+		job.failedAt = new Date();
+
+		this.removeFromActive(job.queueName, job.id);
+
+		// Retry logic
+		if (job.attempts < job.maxAttempts) {
+			const delay = this.calculateRetryDelay(job.attempts);
+			job.status = "delayed";
+			job.runAt = new Date(Date.now() + delay);
+
+			this.addToDelayed(job.queueName, job);
+			this.emit("job:retry", job);
+		} else {
+			// Max attempts reached
+			job.status = "failed";
+			this.addToFailed(job.queueName, job);
+
+			// Move to DLQ if enabled
+			if (this.options.dlqEnabled) {
+				this.addToDLQ(job.queueName, job);
+				this.emit("job:dlq", job);
+			}
+
+			this.emit("job:failed", job);
+		}
+		return true;
 	}
 
 	/**

@@ -102,6 +102,69 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 	});
 
 	/**
+	 * Claim the next job from the queue
+	 * POST /queue/v2/:queueName/claim
+	 */
+	router.post("/:queueName/claim", (req, res) => {
+		try {
+			const { queueName } = req.params;
+			const job = queue.claim(queueName);
+
+			if (!job) {
+				return res.json({ success: true, job: null });
+			}
+
+			res.json({ success: true, job });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
+		}
+	});
+
+	/**
+	 * Mark a job as completed
+	 * POST /queue/v2/jobs/:jobId/complete
+	 */
+	router.post("/jobs/:jobId/complete", (req, res) => {
+		try {
+			const { jobId } = req.params;
+			const { result } = req.body;
+			const success = queue.complete(jobId, result);
+
+			if (!success) {
+				return res
+					.status(404)
+					.json({ success: false, error: "Job not found or not active" });
+			}
+
+			res.json({ success: true });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
+		}
+	});
+
+	/**
+	 * Mark a job as failed
+	 * POST /queue/v2/jobs/:jobId/fail
+	 */
+	router.post("/jobs/:jobId/fail", (req, res) => {
+		try {
+			const { jobId } = req.params;
+			const { error } = req.body;
+			const success = queue.fail(jobId, error);
+
+			if (!success) {
+				return res
+					.status(404)
+					.json({ success: false, error: "Job not found or not active" });
+			}
+
+			res.json({ success: true });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
+		}
+	});
+
+	/**
 	 * Retry a failed job
 	 * POST /queue/v2/jobs/:jobId/retry
 	 */

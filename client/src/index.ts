@@ -48,6 +48,31 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
+export interface JobV2<T = JsonValue> {
+  id: string;
+  queueName: string;
+  data: T;
+  status: "waiting" | "active" | "completed" | "failed" | "delayed";
+  attempts: number;
+  maxAttempts: number;
+  priority: number;
+  createdAt: string;
+  runAt: string;
+  clientCode?: string;
+  progress?: number;
+  error?: string;
+  result?: JsonValue;
+}
+
+export interface EnqueueOptionsV2 {
+  priority?: number;
+  maxAttempts?: number;
+  delayMs?: number;
+  runAt?: Date | string;
+  clientCode?: string;
+  metadata?: Record<string, JsonValue>;
+}
+
 // ─── Client ─────────────────────────────────────────────────────────────────
 
 export class ErixClient {
@@ -226,13 +251,58 @@ export class ErixClient {
   // ─── Queue (FIFO job queue, built on List) ────────────────────────────
 
   public queue = {
-    /** Enqueue a job payload into a named queue */
+    /** Enqueue a job payload into a named queue (simple list-based) */
     push: async (name: string, data: JsonValue): Promise<void> => {
       await this.list.rpush(`q:${name}`, data);
     },
     /** Dequeue the oldest job from a named queue. Returns `null` if empty. */
     pop: async <T = JsonValue>(name: string): Promise<T | null> => {
       return this.list.lpop<T>(`q:${name}`);
+    },
+  };
+
+  /** Advanced Queue (v2) — supports priority, delay, retries, and persistence */
+  public queueV2 = {
+    /** Enqueue a job into an advanced queue */
+    push: async <T = JsonValue>(
+      queueName: string,
+      data: T,
+      options: EnqueueOptionsV2 = {},
+    ): Promise<JobV2<T>> => {
+      const res = await this.req<{ success: boolean; job: JobV2<T> }>(
+        "POST",
+        `/queue/v2/${queueName}/jobs`,
+        { data, ...options },
+      );
+      return res.job;
+    },
+    /** Claim the next eligible job from the queue */
+    claim: async <T = JsonValue>(queueName: string): Promise<JobV2<T> | null> => {
+      const res = await this.req<{ success: boolean; job: JobV2<T> | null }>(
+        "POST",
+        `/queue/v2/${queueName}/claim`,
+      );
+      return res.job;
+    },
+    /** Mark a job as completed */
+    complete: async (jobId: string, result?: JsonValue): Promise<void> => {
+      await this.req("POST", `/queue/v2/jobs/${jobId}/complete`, { result });
+    },
+    /** Mark a job as failed */
+    fail: async (jobId: string, error: string): Promise<void> => {
+      await this.req("POST", `/queue/v2/jobs/${jobId}/fail`, { error });
+    },
+    /** Update job progress (0-100) */
+    updateProgress: async (jobId: string, progress: number): Promise<void> => {
+      await this.req("PATCH", `/queue/v2/jobs/${jobId}/progress`, { progress });
+    },
+    /** Get job by ID */
+    get: async <T = JsonValue>(jobId: string): Promise<JobV2<T> | null> => {
+      const res = await this.req<{ success: boolean; job: JobV2<T> | null }>(
+        "GET",
+        `/queue/v2/jobs/${jobId}`,
+      );
+      return res.job;
     },
   };
 
