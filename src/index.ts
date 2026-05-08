@@ -5,7 +5,6 @@ import { ErixStore } from "./core/Store.js";
 import { createApp } from "./server/app.js";
 import { CacheService } from "./services/CacheService.js";
 import { DistributedLockService } from "./services/DistributedLock.js";
-import { JobQueueService } from "./services/JobQueue.js";
 import { JobQueueV2 } from "./services/JobQueueV2.js";
 import { PubSubService } from "./services/PubSub.js";
 import { RateLimiterService } from "./services/RateLimiter.js";
@@ -28,7 +27,6 @@ async function bootstrap() {
 
 		// Initialize Components
 		const store = new ErixStore();
-		const queue = new JobQueueService();
 		const queueV2 = new JobQueueV2({
 			maxConcurrency: 10,
 			defaultMaxAttempts: 3,
@@ -46,7 +44,7 @@ async function bootstrap() {
 			enableStats: true,
 		});
 
-		const persistence = new PersistenceManager(store, queue, rateLimiter, {
+		const persistence = new PersistenceManager(store, rateLimiter, {
 			queueV2,
 			lock,
 			cache,
@@ -80,7 +78,7 @@ async function bootstrap() {
 		});
 
 		// Create & Start Server
-		const app = createApp(store, queue, pubsub, rateLimiter, {
+		const app = createApp(store, pubsub, rateLimiter, {
 			queueV2,
 			lock,
 			cache,

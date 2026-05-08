@@ -1,9 +1,9 @@
-import { TTLManager } from "./TTLManager.js";
-import { StringStore } from "../structures/StringStore.js";
 import { HashStore } from "../structures/HashStore.js";
 import { ListStore } from "../structures/ListStore.js";
 import { SetStore } from "../structures/SetStore.js";
 import { SortedSetStore } from "../structures/SortedSet.js";
+import { StringStore } from "../structures/StringStore.js";
+import { TTLManager } from "./TTLManager.js";
 export class ErixStore {
     strings = new StringStore();
     hashes = new HashStore();

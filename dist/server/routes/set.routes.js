@@ -24,7 +24,9 @@ export const createSetRoutes = (store) => {
     router.get("/zrange", (req, res) => {
         const { key, start, stop } = req.query;
         const tenantKey = getTenantKey(req.tenantId, key);
-        res.json({ members: store.sortedSets.zrange(tenantKey, Number(start), Number(stop)) });
+        res.json({
+            members: store.sortedSets.zrange(tenantKey, Number(start), Number(stop)),
+        });
     });
     return router;
 };

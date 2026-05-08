@@ -1,14 +1,13 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import { createApp } from "./server/app.js";
+import { PersistenceManager } from "./core/Persistence.js";
 import { ErixStore } from "./core/Store.js";
-import { JobQueueService } from "./services/JobQueue.js";
+import { createApp } from "./server/app.js";
+import { CacheService } from "./services/CacheService.js";
+import { DistributedLockService } from "./services/DistributedLock.js";
 import { JobQueueV2 } from "./services/JobQueueV2.js";
 import { PubSubService } from "./services/PubSub.js";
 import { RateLimiterService } from "./services/RateLimiter.js";
-import { DistributedLockService } from "./services/DistributedLock.js";
-import { CacheService } from "./services/CacheService.js";
-import { PersistenceManager } from "./core/Persistence.js";
 dotenv.config();
 const PORT = process.env.PORT || 6399;
 const MONGO_URI = process.env.MONGODB_URI;
@@ -23,7 +22,6 @@ async function bootstrap() {
         console.log("[ErixStore] Connected to MongoDB");
         // Initialize Components
         const store = new ErixStore();
-        const queue = new JobQueueService();
         const queueV2 = new JobQueueV2({
             maxConcurrency: 10,
             defaultMaxAttempts: 3,
@@ -40,7 +38,11 @@ async function bootstrap() {
             defaultTTL: 3600000, // 1 hour
             enableStats: true,
         });
-        const persistence = new PersistenceManager(store, queue, rateLimiter);
+        const persistence = new PersistenceManager(store, rateLimiter, {
+            queueV2,
+            lock,
+            cache,
+        });
         // Restore from snapshot
         await persistence.restore();
         // Start Auto-save (5 mins)
@@ -62,7 +64,7 @@ async function bootstrap() {
             console.log(`[Cache] Evicted ${count} entries using ${strategy}`);
         });
         // Create & Start Server
-        const app = createApp(store, queue, pubsub, rateLimiter, {
+        const app = createApp(store, pubsub, rateLimiter, {
             queueV2,
             lock,
             cache,

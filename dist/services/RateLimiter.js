@@ -12,7 +12,7 @@ export class RateLimiterService {
         if (!entry || now > entry.resetAt) {
             entry = {
                 count: 0,
-                resetAt: now + windowSeconds * 1000
+                resetAt: now + windowSeconds * 1000,
             };
         }
         entry.count++;
@@ -22,7 +22,7 @@ export class RateLimiterService {
         return {
             allowed,
             remaining,
-            resetAt: entry.resetAt
+            resetAt: entry.resetAt,
         };
     }
     export() {

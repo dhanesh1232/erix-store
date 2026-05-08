@@ -15,7 +15,11 @@ export class ErixClient {
     }
     // Core Operations
     async set(key, value, ttlSeconds) {
-        await this.http.post("/core/set", { key, value: JSON.stringify(value), ttl: ttlSeconds });
+        await this.http.post("/core/set", {
+            key,
+            value: JSON.stringify(value),
+            ttl: ttlSeconds,
+        });
     }
     async get(key) {
         const res = await this.http.get("/core/get", { params: { key } });
@@ -34,7 +38,11 @@ export class ErixClient {
     // Hash Operations
     hash = {
         hset: async (key, field, value) => {
-            await this.http.post("/hash/hset", { key, field, value: JSON.stringify(value) });
+            await this.http.post("/hash/hset", {
+                key,
+                field,
+                value: JSON.stringify(value),
+            });
         },
         hget: async (key, field) => {
             const res = await this.http.get("/hash/hget", { params: { key, field } });
@@ -50,15 +58,21 @@ export class ErixClient {
         hgetall: async (key) => {
             const res = await this.http.get("/hash/hgetall", { params: { key } });
             return res.data.data;
-        }
+        },
     };
     // List Operations
     list = {
         lpush: async (key, value) => {
-            await this.http.post("/list/lpush", { key, value: JSON.stringify(value) });
+            await this.http.post("/list/lpush", {
+                key,
+                value: JSON.stringify(value),
+            });
         },
         rpush: async (key, value) => {
-            await this.http.post("/list/rpush", { key, value: JSON.stringify(value) });
+            await this.http.post("/list/rpush", {
+                key,
+                value: JSON.stringify(value),
+            });
         },
         lpop: async (key) => {
             const res = await this.http.get("/list/lpop", { params: { key } });
@@ -70,23 +84,22 @@ export class ErixClient {
             catch {
                 return res.data.value;
             }
-        }
+        },
     };
-    // Queue Operations
+    // Queue Operations (Legacy Mapper to List)
     queue = {
         push: async (name, data) => {
-            await this.http.post("/queue/push", { queue: name, data });
+            await this.list.rpush(`q:${name}`, data);
         },
         pop: async (name) => {
-            const res = await this.http.get("/queue/pop", { params: { queue: name } });
-            return res.data.data;
-        }
+            return await this.list.lpop(`q:${name}`);
+        },
     };
     // PubSub Operations
     pubsub = {
         publish: async (channel, message) => {
             await this.http.post("/pubsub/publish", { channel, message });
-        }
+        },
     };
     // Rate Limit
     async rateLimit(key, limit, window) {

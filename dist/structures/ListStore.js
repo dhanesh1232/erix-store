@@ -4,13 +4,13 @@ export class ListStore {
         if (!this.data.has(key)) {
             this.data.set(key, []);
         }
-        this.data.get(key).unshift(value);
+        this.data.get(key)?.unshift(value);
     }
     rpush(key, value) {
         if (!this.data.has(key)) {
             this.data.set(key, []);
         }
-        this.data.get(key).push(value);
+        this.data.get(key)?.push(value);
     }
     lpop(key) {
         const list = this.data.get(key);
@@ -36,8 +36,8 @@ export class ListStore {
             return [];
         // Handle negative indices like Redis
         const len = list.length;
-        let s = start < 0 ? len + start : start;
-        let e = stop < 0 ? len + stop : stop;
+        const s = start < 0 ? len + start : start;
+        const e = stop < 0 ? len + stop : stop;
         return list.slice(s, e + 1);
     }
     delete(key) {

@@ -6,13 +6,17 @@ const SnapshotSchema = new mongoose.Schema({
 export const SnapshotModel = mongoose.model("ErixSnapshot", SnapshotSchema);
 export class PersistenceManager {
     store;
-    queue;
     rateLimiter;
+    queueV2;
+    lock;
+    cache;
     saveInterval = null;
-    constructor(store, queue, rateLimiter) {
+    constructor(store, rateLimiter, enhanced) {
         this.store = store;
-        this.queue = queue;
         this.rateLimiter = rateLimiter;
+        this.queueV2 = enhanced?.queueV2;
+        this.lock = enhanced?.lock;
+        this.cache = enhanced?.cache;
     }
     async startAutoSave(intervalMs = 5 * 60 * 1000) {
         console.log(`[Persistence] Starting auto-save every ${intervalMs / 1000}s`);
@@ -23,9 +27,18 @@ export class PersistenceManager {
             console.log("[Persistence] Creating snapshot...");
             const snapshotData = {
                 store: this.store.exportAll(),
-                queues: this.queue.export(),
                 rateLimits: this.rateLimiter.export(),
             };
+            // Save enhanced services if available
+            if (this.queueV2) {
+                snapshotData.queueV2 = this.queueV2.export();
+            }
+            if (this.lock) {
+                snapshotData.lock = this.lock.export();
+            }
+            if (this.cache) {
+                snapshotData.cache = this.cache.export();
+            }
             await SnapshotModel.create({ data: snapshotData });
             console.log("[Persistence] Snapshot saved to MongoDB");
             // Cleanup old snapshots (keep last 5)
@@ -51,17 +64,39 @@ export class PersistenceManager {
                 console.log("[Persistence] No snapshot found to restore.");
                 return;
             }
-            const { store, queues, rateLimits } = latest.data;
-            if (store)
-                this.store.importAll(store);
-            if (queues)
-                this.queue.import(queues);
-            if (rateLimits)
-                this.rateLimiter.import(rateLimits);
+            // Handle both old and new snapshot formats
+            const data = latest.data;
+            if (!data) {
+                console.log("[Persistence] Snapshot data is empty, skipping restore.");
+                return;
+            }
+            // Safely restore each component
+            if (data.store) {
+                this.store.importAll(data.store);
+                console.log("[Persistence] Store data restored.");
+            }
+            if (data.rateLimits) {
+                this.rateLimiter.import(data.rateLimits);
+                console.log("[Persistence] Rate limiter data restored.");
+            }
+            // Restore enhanced services if available
+            if (data.queueV2 && this.queueV2) {
+                this.queueV2.import(data.queueV2);
+                console.log("[Persistence] QueueV2 data restored.");
+            }
+            if (data.lock && this.lock) {
+                this.lock.import(data.lock);
+                console.log("[Persistence] Lock data restored.");
+            }
+            if (data.cache && this.cache) {
+                this.cache.import(data.cache);
+                console.log("[Persistence] Cache data restored.");
+            }
             console.log("[Persistence] Restore complete.");
         }
         catch (error) {
             console.error("[Persistence] Failed to restore snapshot:", error);
+            console.log("[Persistence] Starting with fresh state.");
         }
     }
     stopAutoSave() {

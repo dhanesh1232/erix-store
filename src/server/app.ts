@@ -3,7 +3,6 @@ import express from "express";
 import type { ErixStore } from "../core/Store.js";
 import type { CacheService } from "../services/CacheService.js";
 import type { DistributedLockService } from "../services/DistributedLock.js";
-import type { JobQueueService } from "../services/JobQueue.js";
 import type { JobQueueV2 } from "../services/JobQueueV2.js";
 import type { PubSubService } from "../services/PubSub.js";
 import type { RateLimiterService } from "../services/RateLimiter.js";
@@ -14,13 +13,12 @@ import { createHashRoutes } from "./routes/hash.routes.js";
 import { createListRoutes } from "./routes/list.routes.js";
 import { createLockRoutes } from "./routes/lock.routes.js";
 import { createPubSubRoutes } from "./routes/pubsub.routes.js";
-import { createQueueRoutes } from "./routes/queue.routes.js";
 import { createQueueV2Routes } from "./routes/queueV2.routes.js";
+import { createRateLimitRoutes } from "./routes/ratelimit.routes.js";
 import { createSetRoutes } from "./routes/set.routes.js";
 
 export const createApp = (
 	store: ErixStore,
-	queue: JobQueueService,
 	pubsub: PubSubService,
 	rateLimiter: RateLimiterService,
 	enhanced?: {
@@ -53,8 +51,8 @@ export const createApp = (
 	app.use("/hash", createHashRoutes(store));
 	app.use("/list", createListRoutes(store));
 	app.use("/set", createSetRoutes(store));
-	app.use("/queue", createQueueRoutes(queue));
 	app.use("/pubsub", createPubSubRoutes(pubsub));
+	app.use("/ratelimit", createRateLimitRoutes(rateLimiter));
 
 	// Enhanced services (v2)
 	if (enhanced?.queueV2) {

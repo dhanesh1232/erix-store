@@ -4,7 +4,7 @@ export class HashStore {
         if (!this.data.has(key)) {
             this.data.set(key, new Map());
         }
-        this.data.get(key).set(field, value);
+        this.data.get(key)?.set(field, value);
     }
     hget(key, field) {
         const hash = this.data.get(key);

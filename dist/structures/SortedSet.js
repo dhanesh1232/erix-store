@@ -5,7 +5,7 @@ export class SortedSetStore {
             this.data.set(key, []);
         }
         const members = this.data.get(key);
-        const existingIndex = members.findIndex(m => m.value === value);
+        const existingIndex = members.findIndex((m) => m.value === value);
         if (existingIndex !== -1) {
             members[existingIndex].score = score;
         }
@@ -21,22 +21,22 @@ export class SortedSetStore {
         if (!members)
             return [];
         const len = members.length;
-        let s = start < 0 ? len + start : start;
-        let e = stop < 0 ? len + stop : stop;
-        return members.slice(s, e + 1).map(m => m.value);
+        const s = start < 0 ? len + start : start;
+        const e = stop < 0 ? len + stop : stop;
+        return members.slice(s, e + 1).map((m) => m.value);
     }
     zscore(key, value) {
         const members = this.data.get(key);
         if (!members)
             return null;
-        const member = members.find(m => m.value === value);
+        const member = members.find((m) => m.value === value);
         return member ? member.score : null;
     }
     zrem(key, value) {
         const members = this.data.get(key);
         if (!members)
             return 0;
-        const index = members.findIndex(m => m.value === value);
+        const index = members.findIndex((m) => m.value === value);
         if (index === -1)
             return 0;
         members.splice(index, 1);
