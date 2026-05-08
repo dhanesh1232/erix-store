@@ -21,20 +21,23 @@ import dotenv from "dotenv";
 import { createPgPool, PersistenceManager } from "./core/Persistence.js";
 import { ErixStore } from "./core/Store.js";
 import { createApp } from "./server/app.js";
+import { AnomalyDetector } from "./services/AnomalyDetector.js";
 import { CacheService } from "./services/CacheService.js";
 import { DistributedLockService } from "./services/DistributedLock.js";
 import { JobQueueV2 } from "./services/JobQueueV2.js";
 import { PubSubService } from "./services/PubSub.js";
 import { RateLimiterService } from "./services/RateLimiter.js";
+import { SemanticCacheService } from "./services/SemanticCacheService.js";
+import { UsageMeter } from "./services/UsageMeter.js";
 dotenv.config();
 const PORT = parseInt(process.env.PORT ?? "6399", 10);
 const DATABASE_URL = process.env.DATABASE_URL;
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY ?? "";
 if (!DATABASE_URL) {
     console.error("[ErixStore] ERROR: DATABASE_URL is not set");
-    console.error("[ErixStore] Set DATABASE_URL to a PostgreSQL connection string (Supabase, Neon, Render Postgres, etc.)");
     process.exit(1);
 }
-// ─── In-memory services (the Redis-equivalent layer) ─────────────────────────
+// ─── In-memory services (the Redis-equivalent layer) ──────────────────────────
 const store = new ErixStore();
 const queueV2 = new JobQueueV2({
     maxConcurrency: 10,
@@ -52,7 +55,23 @@ const cache = new CacheService({
     defaultTTL: 3_600_000, // 1 hour
     enableStats: true,
 });
-// ─── Event wiring (monitoring) ────────────────────────────────────────────────
+// ─── AI & Analytics layer ────────────────────────────────────────────────────
+const anomaly = new AnomalyDetector(pubsub, {
+    windowSize: 288, // 24h at 5-min intervals
+    thresholdZ: 3.0,
+    checkIntervalMs: 5 * 60 * 1000,
+});
+// SemanticCache is optional — degrades gracefully if GOOGLE_API_KEY is missing
+const semantic = GOOGLE_API_KEY
+    ? new SemanticCacheService({
+        googleApiKey: GOOGLE_API_KEY,
+        similarityThreshold: 0.92,
+    })
+    : null;
+if (!GOOGLE_API_KEY) {
+    console.warn("[ErixStore] GOOGLE_API_KEY not set — semantic cache disabled");
+}
+// ─── Event wiring (monitoring + anomaly feed) ────────────────────────────────
 queueV2.on("job:completed", (job) => {
     console.log(`[Queue] ✓ ${job.id}`);
 });
@@ -61,6 +80,9 @@ queueV2.on("job:failed", (job) => {
 });
 queueV2.on("job:dlq", (job) => {
     console.error(`[Queue] DLQ ${job.id}`);
+});
+queueV2.on("job:zombie", (job) => {
+    console.warn(`[Queue] Zombie reaped: ${job.id}`);
 });
 lock.on("lock:acquired", ({ key }) => {
     console.log(`[Lock] acquired: ${key}`);
@@ -72,11 +94,19 @@ cache.on("cache:evicted", ({ strategy, count }) => {
 async function bootstrap() {
     try {
         // Step 1: Connect to Postgres and ensure snapshot table exists
-        // DATABASE_URL is guaranteed non-null: we process.exit(1) above if it's missing
-        const databaseUrl = DATABASE_URL;
         console.log("[ErixStore] Connecting to PostgreSQL…");
-        const pool = await createPgPool(databaseUrl);
+        const pool = await createPgPool(DATABASE_URL);
         console.log("[ErixStore] PostgreSQL ready ✓");
+        // Ensure metering table exists (idempotent)
+        await pool.query(`
+			CREATE TABLE IF NOT EXISTS erix_usage_events (
+				id          BIGSERIAL PRIMARY KEY,
+				tenant_id   TEXT NOT NULL,
+				event_type  TEXT NOT NULL,
+				count       INTEGER NOT NULL DEFAULT 1,
+				recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+			)
+		`);
         // Step 2: Build persistence manager
         const persistence = new PersistenceManager(pool, store, rateLimiter, {
             queueV2,
@@ -87,41 +117,47 @@ async function bootstrap() {
         await persistence.restore();
         // Step 4: Start periodic auto-save (every 5 minutes)
         persistence.startAutoSave();
-        // Step 5: Create and start HTTP server
+        // Step 5: Start usage meter (flushes to Postgres every 10s)
+        const meter = new UsageMeter(pool, anomaly);
+        // Step 6: Create and start HTTP server
         const app = createApp(store, pubsub, rateLimiter, {
             queueV2,
             lock,
             cache,
+            semantic: semantic ?? undefined,
+            meter,
+            anomaly,
         });
         const server = app.listen(PORT, () => {
             console.log(`\n🚀 ErixStore running on port ${PORT}`);
-            console.log(`   ├─ Job Queue     (priority + DLQ + retry)`);
+            console.log(`   ├─ Job Queue       (priority + DLQ + retry + heartbeat)`);
             console.log(`   ├─ Distributed Locks  (mutex, R/W, semaphore)`);
-            console.log(`   ├─ LRU Cache     (512 MB, tag-based invalidation)`);
-            console.log(`   ├─ Pub/Sub       (event bus)`);
-            console.log(`   ├─ Rate Limiter  (sliding window)`);
-            console.log(`   └─ Snapshots     → PostgreSQL (every 5 min)\n`);
+            console.log(`   ├─ LRU Cache       (512 MB, tag-based + SWR)`);
+            console.log(`   ├─ Pub/Sub         (event bus + SSE delivery)`);
+            console.log(`   ├─ Rate Limiter    (sliding window)`);
+            console.log(`   ├─ Anomaly Detector (Z-score, pub/sub alerts)`);
+            console.log(`   ├─ Usage Meter     (per-tenant, Postgres flush)`);
+            console.log(`   ├─ Semantic Cache  (${semantic ? "✓ Google embeddings" : "✗ disabled — set GOOGLE_API_KEY"})`);
+            console.log(`   └─ Snapshots       → PostgreSQL (every 5 min)\n`);
         });
-        // ─── Graceful shutdown ────────────────────────────────────────────────
-        // Render sends SIGTERM, local Ctrl-C sends SIGINT — handle both
+        // ─── Graceful shutdown ───────────────────────────────────────────────
         const shutdown = async (signal) => {
             console.log(`\n[ErixStore] ${signal} received — shutting down…`);
-            // Stop accepting new connections
             server.close(async () => {
                 console.log("[ErixStore] HTTP server closed");
-                // Save a final snapshot before exit
                 persistence.stopAutoSave();
                 await persistence.save();
-                // Destroy in-memory services
+                // Destroy all timed services
                 queueV2.destroy();
                 lock.destroy();
                 cache.destroy();
-                // Close pg pool
+                rateLimiter.destroy();
+                anomaly.destroy();
+                meter.destroy();
                 await pool.end();
                 console.log("[ErixStore] Shutdown complete ✓");
                 process.exit(0);
             });
-            // Force-kill if graceful shutdown hangs after 10 seconds
             setTimeout(() => {
                 console.error("[ErixStore] Forced exit after timeout");
                 process.exit(1);

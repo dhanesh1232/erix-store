@@ -10,9 +10,8 @@ export class SortedSetStore {
 		if (!this.data.has(key)) {
 			this.data.set(key, []);
 		}
-		// data.get(key) is guaranteed non-null: we either verified has() or just set() it above
-		const members = this.data.get(key) ?? [];
-		if (!this.data.has(key)) this.data.set(key, members);
+		// biome-ignore lint/style/noNonNullAssertion: key is guaranteed above
+		const members = this.data.get(key)!;
 		const existingIndex = members.findIndex((m) => m.value === value);
 
 		if (existingIndex !== -1) {

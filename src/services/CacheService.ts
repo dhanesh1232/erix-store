@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 
-export interface CacheEntry<T = any> {
+export interface CacheEntry<T = unknown> {
 	key: string;
 	value: T;
 	ttl?: number;
@@ -10,7 +10,7 @@ export interface CacheEntry<T = any> {
 	accessCount: number;
 	size: number; // bytes
 	tags: Set<string>;
-	metadata?: Record<string, any>;
+	metadata?: Record<string, unknown>;
 }
 
 export interface CacheOptions {
@@ -34,7 +34,12 @@ export interface CacheStats {
 export interface SetOptions {
 	ttl?: number;
 	tags?: string[];
-	metadata?: Record<string, any>;
+	metadata?: Record<string, unknown>;
+	/**
+	 * Stale-While-Revalidate: seconds to serve the old value after TTL expires
+	 * while a background refresh runs. Callers never block on a cache miss.
+	 */
+	staleFor?: number;
 }
 
 /**
@@ -47,10 +52,16 @@ export interface SetOptions {
  * - Memory management
  * - TTL support
  */
-export class CacheService<T = any> extends EventEmitter {
+export class CacheService<T = unknown> extends EventEmitter {
 	private cache = new Map<string, CacheEntry<T>>();
 	private tagIndex = new Map<string, Set<string>>(); // tag -> keys
 	private options: Required<CacheOptions>;
+	// Stored so destroy() can cancel it and prevent timer leak
+	private expiryCheckerInterval: NodeJS.Timeout;
+	/** Single-flight map: prevents cache stampede on concurrent misses */
+	private inFlight = new Map<string, Promise<unknown>>();
+	/** Stale-While-Revalidate: stores values past TTL for graceful background refresh */
+	private staleData = new Map<string, { value: unknown; serveUntil: number }>();
 	private stats: CacheStats = {
 		hits: 0,
 		misses: 0,
@@ -71,11 +82,11 @@ export class CacheService<T = any> extends EventEmitter {
 			enableStats: options.enableStats ?? true,
 		};
 
-		this.startExpiryChecker();
+		this.expiryCheckerInterval = this.startExpiryChecker();
 	}
 
 	/**
-	 * Get value from cache
+	 * Get value from cache. Returns null on miss (use getOrSet to avoid stampedes).
 	 */
 	get(key: string): T | null {
 		const entry = this.cache.get(key);
@@ -100,6 +111,73 @@ export class CacheService<T = any> extends EventEmitter {
 		this.recordHit();
 		this.emit("cache:hit", { key });
 		return entry.value;
+	}
+
+	/**
+	 * Get a value or compute it if missing — with stampede protection.
+	 *
+	 * On a cache miss, only ONE call to `fn()` runs. All concurrent callers
+	 * share the same Promise and receive the same result.
+	 *
+	 * With `staleFor` set: returns the stale value immediately while
+	 * triggering a background refresh — zero latency for the caller.
+	 *
+	 * @example
+	 * const user = await cache.getOrSet(
+	 *   `user:${id}`,
+	 *   () => db.users.findById(id),
+	 *   { ttl: 60_000, staleFor: 300_000 }
+	 * );
+	 */
+	async getOrSet<V = T>(
+		key: string,
+		fn: () => Promise<V>,
+		options: SetOptions = {},
+	): Promise<V> {
+		// Fast path — fresh hit
+		const cached = this.get(key);
+		if (cached !== null) return cached as unknown as V;
+
+		// Stale-While-Revalidate: serve stale immediately, refresh in background
+		const stale = this.staleData.get(key);
+		if (stale && Date.now() < stale.serveUntil) {
+			// Only trigger one background refresh at a time
+			if (!this.inFlight.has(key)) {
+				const refresh = fn()
+					.then((value) => {
+						this.set(key, value as unknown as T, options);
+						this.staleData.delete(key);
+						return value;
+					})
+					.finally(() => this.inFlight.delete(key));
+				this.inFlight.set(key, refresh);
+			}
+			this.emit("cache:stale", { key });
+			return stale.value as V;
+		}
+
+		// Stampede protection: if already fetching, share the same promise
+		if (this.inFlight.has(key)) {
+			return this.inFlight.get(key) as Promise<V>;
+		}
+
+		// Cold miss — we are the designated fetcher
+		const promise = fn()
+			.then((value) => {
+				this.set(key, value as unknown as T, options);
+				// Register stale window if requested
+				if (options.staleFor && options.ttl) {
+					this.staleData.set(key, {
+						value,
+						serveUntil: Date.now() + options.ttl + options.staleFor,
+					});
+				}
+				return value;
+			})
+			.finally(() => this.inFlight.delete(key));
+
+		this.inFlight.set(key, promise);
+		return promise;
 	}
 
 	/**
@@ -259,23 +337,7 @@ export class CacheService<T = any> extends EventEmitter {
 		return keysToDelete.length;
 	}
 
-	/**
-	 * Get or set (cache-aside pattern)
-	 */
-	async getOrSet(
-		key: string,
-		factory: () => Promise<T>,
-		options: SetOptions = {},
-	): Promise<T> {
-		const cached = this.get(key);
-		if (cached !== null) {
-			return cached;
-		}
 
-		const value = await factory();
-		this.set(key, value, options);
-		return value;
-	}
 
 	/**
 	 * Warm cache with data
@@ -504,8 +566,9 @@ export class CacheService<T = any> extends EventEmitter {
 		}
 	}
 
-	private startExpiryChecker(): void {
-		setInterval(() => {
+	/** Returns the interval handle so it can be stored and cancelled on destroy() */
+	private startExpiryChecker(): NodeJS.Timeout {
+		return setInterval(() => {
 			const now = Date.now();
 			const keysToDelete: string[] = [];
 
@@ -577,9 +640,10 @@ export class CacheService<T = any> extends EventEmitter {
 	}
 
 	/**
-	 * Cleanup
+	 * Cleanup — cancels timers, clears cache, removes listeners
 	 */
 	destroy(): void {
+		clearInterval(this.expiryCheckerInterval);
 		this.clear();
 		this.removeAllListeners();
 	}

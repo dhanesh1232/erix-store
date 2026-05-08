@@ -5,9 +5,8 @@ export class SetStore {
 		if (!this.data.has(key)) {
 			this.data.set(key, new Set());
 		}
-		// Guaranteed non-null: we just set() the key above if it was missing
-		const set = this.data.get(key) ?? new Set<string>();
-		if (!this.data.has(key)) this.data.set(key, set);
+		// biome-ignore lint/style/noNonNullAssertion: key is guaranteed by the has() guard above
+		const set = this.data.get(key)!;
 		const sizeBefore = set.size;
 		set.add(value);
 		return set.size - sizeBefore;

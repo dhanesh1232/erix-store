@@ -213,5 +213,80 @@ export function createQueueV2Routes(queue: JobQueueV2): Router {
 		}
 	});
 
+	/**
+	 * Worker heartbeat — keeps an active job alive in the reaper
+	 * PATCH /queue/v2/jobs/:jobId/heartbeat
+	 */
+	router.patch("/jobs/:jobId/heartbeat", (req, res) => {
+		try {
+			const { jobId } = req.params;
+			const ok = queue.heartbeat(jobId);
+			if (!ok) return res.status(404).json({ success: false, error: "Job not found or not active" });
+			res.json({ success: true });
+		} catch (error: unknown) {
+			res.status(500).json({ success: false, error: (error as Error).message });
+		}
+	});
+
+	/**
+	 * Server-Sent Events stream for a queue
+	 * Workers subscribe once instead of polling every N seconds.
+	 * GET /queue/v2/:queueName/events
+	 *
+	 * Events emitted:
+	 *   job:added   — a new job entered the queue
+	 *   job:active  — a job was claimed
+	 *   job:completed — a job finished successfully
+	 *   job:failed  — a job exhausted its attempts
+	 *   job:zombie  — a job was killed by the reaper
+	 */
+	router.get("/:queueName/events", (req, res) => {
+		const { queueName } = req.params;
+
+		res.setHeader("Content-Type", "text/event-stream");
+		res.setHeader("Cache-Control", "no-cache");
+		res.setHeader("Connection", "keep-alive");
+		res.setHeader("X-Accel-Buffering", "no"); // disable Nginx buffering
+		res.flushHeaders();
+
+		// Send a heartbeat comment every 30s to keep the connection alive through proxies
+		const keepAlive = setInterval(() => res.write(": ping\n\n"), 30_000);
+
+		const send = (event: string, data: unknown) => {
+			res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+		};
+
+		const onAdded = (job: { queueName: string }) => {
+			if (job.queueName === queueName) send("job:added", job);
+		};
+		const onActive = (job: { queueName: string }) => {
+			if (job.queueName === queueName) send("job:active", job);
+		};
+		const onCompleted = (job: { queueName: string }) => {
+			if (job.queueName === queueName) send("job:completed", job);
+		};
+		const onFailed = (job: { queueName: string }) => {
+			if (job.queueName === queueName) send("job:failed", job);
+		};
+		const onZombie = (job: { queueName: string }) => {
+			if (job.queueName === queueName) send("job:zombie", job);
+		};
+
+		queue.on("job:added", onAdded);
+		queue.on("job:active", onActive);
+		queue.on("job:completed", onCompleted);
+		queue.on("job:failed", onFailed);
+		queue.on("job:zombie", onZombie);
+
+		req.on("close", () => {
+			clearInterval(keepAlive);
+			queue.off("job:added", onAdded);
+			queue.off("job:active", onActive);
+			queue.off("job:completed", onCompleted);
+			queue.off("job:failed", onFailed);
+			queue.off("job:zombie", onZombie);
+		});
+	});
+
 	return router;
 }

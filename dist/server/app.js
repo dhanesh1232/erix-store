@@ -1,6 +1,8 @@
 import cors from "cors";
 import express from "express";
 import { authMiddleware } from "./middleware/auth.js";
+import { createMeteringMiddleware } from "./middleware/metering.js";
+import { createAnalyticsRoutes } from "./routes/analytics.routes.js";
 import { createCacheRoutes } from "./routes/cache.routes.js";
 import { createCoreRoutes } from "./routes/core.routes.js";
 import { createHashRoutes } from "./routes/hash.routes.js";
@@ -9,20 +11,21 @@ import { createLockRoutes } from "./routes/lock.routes.js";
 import { createPubSubRoutes } from "./routes/pubsub.routes.js";
 import { createQueueV2Routes } from "./routes/queueV2.routes.js";
 import { createRateLimitRoutes } from "./routes/ratelimit.routes.js";
+import { createSemanticCacheRoutes } from "./routes/semantic.routes.js";
 import { createSetRoutes } from "./routes/set.routes.js";
-export const createApp = (store, pubsub, rateLimiter, enhanced) => {
+export const createApp = (store, pubsub, rateLimiter, services = {}) => {
     const app = express();
     app.use(cors());
-    app.use(express.json());
-    // Health & Stats (Unprotected)
+    app.use(express.json({ limit: "2mb" }));
+    // Health (unprotected — needed by monitoring/load-balancers)
     app.get("/health", (_req, res) => res.json({ status: "ok", uptime: process.uptime() }));
-    app.get("/stats", (_req, res) => res.json({
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        store: store.exportAll(), // Be careful with large data in production
-    }));
-    // Protected Routes
+    // ── Protected Routes ────────────────────────────────────────────────────
     app.use(authMiddleware);
+    // Metering middleware — passive, runs after auth so tenantId is set
+    if (services.meter) {
+        app.use(createMeteringMiddleware(services.meter));
+    }
+    // Core data structures
     app.use("/core", createCoreRoutes(store));
     app.use("/hash", createHashRoutes(store));
     app.use("/list", createListRoutes(store));
@@ -30,20 +33,27 @@ export const createApp = (store, pubsub, rateLimiter, enhanced) => {
     app.use("/pubsub", createPubSubRoutes(pubsub));
     app.use("/ratelimit", createRateLimitRoutes(rateLimiter));
     // Enhanced services (v2)
-    if (enhanced?.queueV2) {
-        app.use("/queue/v2", createQueueV2Routes(enhanced.queueV2));
+    if (services.queueV2) {
+        app.use("/queue/v2", createQueueV2Routes(services.queueV2));
     }
-    if (enhanced?.lock) {
-        app.use("/lock", createLockRoutes(enhanced.lock));
+    if (services.lock) {
+        app.use("/lock", createLockRoutes(services.lock));
     }
-    if (enhanced?.cache) {
-        app.use("/cache", createCacheRoutes(enhanced.cache));
+    if (services.cache) {
+        app.use("/cache", createCacheRoutes(services.cache));
     }
-    // Rate Limit route
-    app.post("/ratelimit", async (req, res) => {
-        const { key, limit, window } = req.body;
-        const result = await rateLimiter.check(`${req.tenantId}:${key}`, limit, window);
-        res.json(result);
-    });
+    // AI layer
+    if (services.semantic) {
+        app.use("/semantic", createSemanticCacheRoutes(services.semantic));
+    }
+    // Analytics + Anomaly detection
+    if (services.meter && services.anomaly) {
+        app.use("/analytics", createAnalyticsRoutes(services.meter, services.anomaly));
+    }
+    // Platform stats (process-level, protected)
+    app.get("/stats", (_req, res) => res.json({
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+    }));
     return app;
 };

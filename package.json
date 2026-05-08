@@ -14,7 +14,6 @@
 		"type": "tsc --noEmit"
 	},
 	"dependencies": {
-		"axios": "^1.6.8",
 		"cors": "^2.8.5",
 		"dotenv": "^16.4.5",
 		"events": "^3.3.0",

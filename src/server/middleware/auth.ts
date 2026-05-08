@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 export const authMiddleware = (
@@ -8,7 +9,14 @@ export const authMiddleware = (
 	const apiKey = req.headers["x-erix-key"] as string;
 	const tenantId = req.headers["x-tenant-id"] as string;
 
-	if (!apiKey || apiKey !== process.env.ERIX_API_KEY) {
+	const expectedKey = process.env.ERIX_API_KEY ?? "";
+
+	// Use timing-safe comparison to prevent timing-attack enumeration of the key
+	const isValid =
+		apiKey.length === expectedKey.length &&
+		timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey));
+
+	if (!apiKey || !isValid) {
 		return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
 	}
 
