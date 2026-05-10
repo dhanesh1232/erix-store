@@ -1,46 +1,46 @@
 {
-	"name": "@ecodrix/erix-client",
-	"version": "1.0.3",
-	"description": "Type-safe HTTP client for the erix-store in-memory data service. Zero dependencies — uses native fetch.",
-	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
-	"files": [
-		"dist",
-		"README.md"
-	],
-	"scripts": {
-		"build": "tsc",
-		"prepublishOnly": "npm run build"
-	},
-	"keywords": [
-		"erix-store",
-		"cache",
-		"queue",
-		"rate-limit",
-		"pubsub",
-		"ecodrix",
-		"redis-alternative",
-		"in-memory"
-	],
-	"author": "dhanesh125",
-	"license": "MIT",
-	"engines": {
-		"node": ">=18"
-	},
-	"dependencies": {},
-	"devDependencies": {
-		"@types/node": "^20.12.7",
-		"typescript": "^5.4.5"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/dhanesh125/erix-store"
-	}
+  "name": "@ecodrix/erix-client",
+  "version": "1.0.4",
+  "description": "Type-safe HTTP client for the erix-store in-memory data service. Zero dependencies — uses native fetch.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "erix-store",
+    "cache",
+    "queue",
+    "rate-limit",
+    "pubsub",
+    "ecodrix",
+    "redis-alternative",
+    "in-memory"
+  ],
+  "author": "dhanesh125",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dhanesh125/erix-store"
+  }
 }

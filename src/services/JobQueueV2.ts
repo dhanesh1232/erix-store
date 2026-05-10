@@ -593,14 +593,31 @@ export class JobQueueV2 extends EventEmitter {
 	 */
 	import(data: Record<string, unknown>): void {
 		const d = data as Record<string, Record<string, Job[]>>;
-		if (d.queues) this.queues = new Map(Object.entries(d.queues));
-		if (d.activeJobs) this.activeJobs = new Map(Object.entries(d.activeJobs));
-		if (d.completedJobs)
-			this.completedJobs = new Map(Object.entries(d.completedJobs));
-		if (d.failedJobs) this.failedJobs = new Map(Object.entries(d.failedJobs));
-		if (d.delayedJobs)
-			this.delayedJobs = new Map(Object.entries(d.delayedJobs));
-		if (d.dlq) this.dlq = new Map(Object.entries(d.dlq));
+
+		const hydrateJobs = (jobsMap?: Record<string, Job[]>) => {
+			if (!jobsMap) return new Map<string, Job[]>();
+			const hydratedMap = new Map<string, Job[]>();
+			for (const [queueName, jobs] of Object.entries(jobsMap)) {
+				const hydratedJobs = jobs.map((job) => {
+					if (job.runAt) job.runAt = new Date(job.runAt);
+					if (job.createdAt) job.createdAt = new Date(job.createdAt);
+					if (job.startedAt) job.startedAt = new Date(job.startedAt);
+					if (job.completedAt) job.completedAt = new Date(job.completedAt);
+					if (job.failedAt) job.failedAt = new Date(job.failedAt);
+					if (job.heartbeatAt) job.heartbeatAt = new Date(job.heartbeatAt);
+					return job;
+				});
+				hydratedMap.set(queueName, hydratedJobs);
+			}
+			return hydratedMap;
+		};
+
+		if (d.queues) this.queues = hydrateJobs(d.queues);
+		if (d.activeJobs) this.activeJobs = hydrateJobs(d.activeJobs);
+		if (d.completedJobs) this.completedJobs = hydrateJobs(d.completedJobs);
+		if (d.failedJobs) this.failedJobs = hydrateJobs(d.failedJobs);
+		if (d.delayedJobs) this.delayedJobs = hydrateJobs(d.delayedJobs);
+		if (d.dlq) this.dlq = hydrateJobs(d.dlq);
 	}
 
 	/**

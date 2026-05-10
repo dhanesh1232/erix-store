@@ -141,7 +141,11 @@ async function bootstrap() {
             console.log(`   └─ Snapshots       → PostgreSQL (every 5 min)\n`);
         });
         // ─── Graceful shutdown ───────────────────────────────────────────────
+        let isShuttingDown = false;
         const shutdown = async (signal) => {
+            if (isShuttingDown)
+                return;
+            isShuttingDown = true;
             console.log(`\n[ErixStore] ${signal} received — shutting down…`);
             server.close(async () => {
                 console.log("[ErixStore] HTTP server closed");
@@ -154,7 +158,12 @@ async function bootstrap() {
                 rateLimiter.destroy();
                 anomaly.destroy();
                 meter.destroy();
-                await pool.end();
+                try {
+                    await pool.end();
+                }
+                catch (err) {
+                    console.error("[ErixStore] Error closing database pool:", err.message);
+                }
                 console.log("[ErixStore] Shutdown complete ✓");
                 process.exit(0);
             });
