@@ -3,10 +3,14 @@ export const authMiddleware = (req, res, next) => {
     const apiKey = req.headers["x-erix-key"];
     const tenantId = req.headers["x-tenant-id"];
     const expectedKey = process.env.ERIX_API_KEY ?? "";
+    // Check if apiKey exists first
+    if (!apiKey) {
+        return res.status(401).json({ error: "Unauthorized: Missing API Key" });
+    }
     // Use timing-safe comparison to prevent timing-attack enumeration of the key
     const isValid = apiKey.length === expectedKey.length &&
         timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey));
-    if (!apiKey || !isValid) {
+    if (!isValid) {
         return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
     }
     if (!tenantId) {
