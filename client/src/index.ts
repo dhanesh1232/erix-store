@@ -20,6 +20,18 @@
  * ```
  */
 
+import { HttpTransport } from "./transports/HttpTransport.js";
+import type {
+	TransportLayer,
+	TransportMode,
+} from "./transports/TransportLayer.js";
+import { WebSocketTransport } from "./transports/WebSocketTransport.js";
+
+export { HttpTransport } from "./transports/HttpTransport.js";
+export { WebSocketTransport } from "./transports/WebSocketTransport.js";
+// Re-export transport types for consumers
+export type { TransportLayer, TransportMode };
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 /** Any value that can be serialized to and from JSON */
@@ -40,6 +52,13 @@ export interface ErixClientOptions {
 	tenantId: string;
 	/** Optional request timeout in milliseconds (default: 5000) */
 	timeoutMs?: number;
+	/**
+	 * Transport mode:
+	 * - "http": Use HTTP only (original behavior)
+	 * - "ws": Use WebSocket only
+	 * - "auto": Attempt WebSocket first, fall back to HTTP if unavailable (default)
+	 */
+	transport?: "http" | "ws" | "auto";
 }
 
 export interface RateLimitResult {
@@ -108,15 +127,70 @@ export class ErixClient {
 	private readonly baseUrl: string;
 	private readonly headers: Record<string, string>;
 	private readonly timeoutMs: number;
+	private readonly transportMode: TransportMode;
+	private transport: TransportLayer;
 
 	constructor(options: ErixClientOptions) {
 		this.baseUrl = options.baseUrl.replace(/\/$/, ""); // strip trailing slash
 		this.timeoutMs = options.timeoutMs ?? 5000;
+		this.transportMode = options.transport ?? "auto";
 		this.headers = {
 			"x-erix-key": options.apiKey,
 			"x-tenant-id": options.tenantId,
 			"Content-Type": "application/json",
 		};
+
+		// Initialize transport based on mode
+		this.transport = this.createTransport();
+	}
+
+	/**
+	 * Create the appropriate transport based on the configured mode.
+	 * In "auto" mode, starts with WebSocket and falls back to HTTP on failure.
+	 */
+	private createTransport(): TransportLayer {
+		const httpTransport = new HttpTransport({
+			baseUrl: this.baseUrl,
+			headers: this.headers,
+			timeoutMs: this.timeoutMs,
+		});
+
+		if (this.transportMode === "http") {
+			return httpTransport;
+		}
+
+		// For "ws" and "auto" modes, create a WebSocket transport
+		const wsUrl = this.baseUrl
+			.replace(/^https:/, "wss:")
+			.replace(/^http:/, "ws:");
+
+		try {
+			const wsTransport = new WebSocketTransport({
+				url: wsUrl,
+				headers: this.headers,
+				timeoutMs: this.timeoutMs,
+				reconnect: {
+					initialDelayMs: 1000,
+					maxDelayMs: 30000,
+					backoffFactor: 2,
+				},
+			});
+
+			if (this.transportMode === "ws") {
+				return wsTransport;
+			}
+
+			// "auto" mode: use WebSocket with HTTP as fallback
+			return new AutoTransport(wsTransport, httpTransport);
+		} catch {
+			// If WebSocket creation fails in "auto" mode, fall back to HTTP
+			if (this.transportMode === "auto") {
+				return httpTransport;
+			}
+			throw new Error(
+				"[erix-store] Failed to create WebSocket transport in 'ws' mode",
+			);
+		}
 	}
 
 	// ── Internal fetch helper ─────────────────────────────────────────────
@@ -127,31 +201,30 @@ export class ErixClient {
 		body?: unknown,
 		params?: Record<string, string>,
 	): Promise<T> {
-		const url = new URL(`${this.baseUrl}${path}`);
-		if (params) {
-			for (const [k, v] of Object.entries(params)) {
-				url.searchParams.set(k, v);
-			}
-		}
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-		try {
-			const res = await fetch(url.toString(), {
-				method,
-				headers: this.headers,
-				body: body !== undefined ? JSON.stringify(body) : undefined,
-				signal: controller.signal,
-			});
-			if (!res.ok) {
-				const err = (await res.json().catch(() => ({}))) as { error?: string };
-				throw new Error(
-					`[erix-store] ${method} ${path} → ${res.status}: ${err.error ?? res.statusText}`,
-				);
-			}
-			return (await res.json()) as T;
-		} finally {
-			clearTimeout(timer);
-		}
+		return this.transport.request(method, path, body, params) as Promise<T>;
+	}
+
+	/**
+	 * Execute multiple operations in a single round-trip (pipeline).
+	 * Over WebSocket, this sends all requests in one frame.
+	 * Over HTTP, requests are executed concurrently via Promise.all.
+	 */
+	async pipeline(
+		requests: Array<{
+			method: string;
+			path: string;
+			body?: unknown;
+			params?: Record<string, string>;
+		}>,
+	): Promise<unknown[]> {
+		return this.transport.pipeline(requests);
+	}
+
+	/**
+	 * Close the transport and release resources.
+	 */
+	close(): void {
+		this.transport.close();
 	}
 
 	// ─── Health ───────────────────────────────────────────────────────────
@@ -708,5 +781,64 @@ export class ErixClient {
 
 		run();
 		return { close: () => controller.abort() };
+	}
+}
+
+// ─── AutoTransport (internal) ────────────────────────────────────────────
+
+/**
+ * Internal transport that tries WebSocket first and falls back to HTTP
+ * if the WebSocket is not connected. Used in "auto" mode.
+ */
+class AutoTransport implements TransportLayer {
+	constructor(
+		private readonly ws: WebSocketTransport,
+		private readonly http: HttpTransport,
+	) {}
+
+	get isConnected(): boolean {
+		return this.ws.isConnected || this.http.isConnected;
+	}
+
+	async request(
+		method: string,
+		path: string,
+		body?: unknown,
+		params?: Record<string, string>,
+	): Promise<unknown> {
+		// If WebSocket is connected, use it
+		if (this.ws.isConnected) {
+			try {
+				return await this.ws.request(method, path, body, params);
+			} catch {
+				// Fall back to HTTP on WebSocket failure
+				return this.http.request(method, path, body, params);
+			}
+		}
+		// Otherwise use HTTP
+		return this.http.request(method, path, body, params);
+	}
+
+	async pipeline(
+		requests: Array<{
+			method: string;
+			path: string;
+			body?: unknown;
+			params?: Record<string, string>;
+		}>,
+	): Promise<unknown[]> {
+		if (this.ws.isConnected) {
+			try {
+				return await this.ws.pipeline(requests);
+			} catch {
+				return this.http.pipeline(requests);
+			}
+		}
+		return this.http.pipeline(requests);
+	}
+
+	close(): void {
+		this.ws.close();
+		this.http.close();
 	}
 }

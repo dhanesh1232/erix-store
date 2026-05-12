@@ -1,47 +1,47 @@
 {
-  "name": "@ecodrix/erix-worker",
-  "version": "1.0.0",
-  "description": "BullMQ-style worker for erix-store. Auto-polling job processor with heartbeat, retry, and graceful shutdown.",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "prepublishOnly": "pnpm run build"
-  },
-  "keywords": [
-    "erix-store",
-    "worker",
-    "queue",
-    "job-processor",
-    "bullmq",
-    "ecodrix",
-    "background-jobs"
-  ],
-  "author": "dhanesh125",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "@ecodrix/erix-client": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/node": "^20.12.7",
-    "typescript": "^5.4.5"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dhanesh125/erix-store"
-  }
+	"name": "@ecodrix/erix-worker",
+	"version": "1.0.0",
+	"description": "BullMQ-style worker for erix-store. Auto-polling job processor with heartbeat, retry, and graceful shutdown.",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"prepublishOnly": "pnpm run build"
+	},
+	"keywords": [
+		"erix-store",
+		"worker",
+		"queue",
+		"job-processor",
+		"bullmq",
+		"ecodrix",
+		"background-jobs"
+	],
+	"author": "dhanesh125",
+	"license": "MIT",
+	"engines": {
+		"node": ">=18"
+	},
+	"dependencies": {
+		"@ecodrix/erix-client": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^20.12.7",
+		"typescript": "^5.4.5"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dhanesh125/erix-store"
+	}
 }

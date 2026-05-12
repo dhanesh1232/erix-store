@@ -3,7 +3,7 @@ import { ListStore } from "../structures/ListStore.js";
 import { SetStore } from "../structures/SetStore.js";
 import { SortedSetStore } from "../structures/SortedSet.js";
 import { StringStore } from "../structures/StringStore.js";
-import { TTLManager } from "./TTLManager.js";
+import { HeapTTLManager } from "./HeapTTLManager.js";
 
 export class ErixStore {
 	public strings = new StringStore();
@@ -11,10 +11,10 @@ export class ErixStore {
 	public lists = new ListStore();
 	public sets = new SetStore();
 	public sortedSets = new SortedSetStore();
-	public ttlManager: TTLManager;
+	public ttlManager: HeapTTLManager;
 
 	constructor() {
-		this.ttlManager = new TTLManager((key) => this.handleExpiry(key));
+		this.ttlManager = new HeapTTLManager((key) => this.handleExpiry(key));
 	}
 
 	private handleExpiry(key: string) {

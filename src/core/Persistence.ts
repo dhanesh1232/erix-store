@@ -16,9 +16,9 @@
  */
 
 import { Pool } from "pg";
+import type { BatchedJobWAL } from "../services/BatchedJobWAL.js";
 import type { CacheService } from "../services/CacheService.js";
 import type { DistributedLockService } from "../services/DistributedLock.js";
-import type { JobWAL } from "../services/JobWAL.js";
 import type { RateLimiterService } from "../services/RateLimiter.js";
 import type { ErixStore } from "./Store.js";
 
@@ -55,7 +55,7 @@ export class PersistenceManager {
 	private rateLimiter: RateLimiterService;
 	private lock?: DistributedLockService;
 	private cache?: CacheService;
-	private wal?: JobWAL;
+	private wal?: BatchedJobWAL;
 	private pool: Pool;
 	private saveInterval: NodeJS.Timeout | null = null;
 
@@ -67,7 +67,7 @@ export class PersistenceManager {
 			lock?: DistributedLockService;
 			cache?: CacheService;
 			/** WAL reference — used for periodic pruning of old finalized rows. */
-			wal?: JobWAL;
+			wal?: BatchedJobWAL;
 		},
 	) {
 		this.pool = pool;
@@ -99,11 +99,11 @@ export class PersistenceManager {
 		const client = await this.pool.connect();
 		try {
 			const snapshot: Record<string, unknown> = {
-				store:      this.store.exportAll(),
+				store: this.store.exportAll(),
 				rateLimits: this.rateLimiter.export(),
 			};
 
-			if (this.lock)  snapshot.lock  = this.lock.export();
+			if (this.lock) snapshot.lock = this.lock.export();
 			if (this.cache) snapshot.cache = this.cache.export();
 			// NOTE: queue is intentionally excluded — the WAL owns job durability.
 
@@ -137,7 +137,9 @@ export class PersistenceManager {
 			);
 
 			if (!rows.length) {
-				console.log("[Persistence] No snapshot found — starting with empty state");
+				console.log(
+					"[Persistence] No snapshot found — starting with empty state",
+				);
 				return;
 			}
 

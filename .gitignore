@@ -121,6 +121,8 @@ lib-cov
 *.pid
 *.gz
 
+*.kiro/
+
 # Editor / OS files
 .vscode/
 .idea/

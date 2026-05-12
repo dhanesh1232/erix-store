@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { LRUList } from "../structures/LRUList.js";
 
 export interface CacheEntry<T = unknown> {
 	key: string;
@@ -55,6 +56,7 @@ export interface SetOptions {
 export class CacheService<T = unknown> extends EventEmitter {
 	private cache = new Map<string, CacheEntry<T>>();
 	private tagIndex = new Map<string, Set<string>>(); // tag -> keys
+	private lruList = new LRUList<string>();
 	private options: Required<CacheOptions>;
 	// Stored so destroy() can cancel it and prevent timer leak
 	private expiryCheckerInterval: NodeJS.Timeout;
@@ -107,6 +109,9 @@ export class CacheService<T = unknown> extends EventEmitter {
 		// Update access metadata
 		entry.lastAccessedAt = new Date();
 		entry.accessCount++;
+
+		// Move to head of LRU list (most recently used)
+		this.lruList.touch(key);
 
 		this.recordHit();
 		this.emit("cache:hit", { key });
@@ -216,6 +221,9 @@ export class CacheService<T = unknown> extends EventEmitter {
 		this.stats.size += size;
 		this.stats.entries = this.cache.size;
 
+		// Add/move key to head of LRU list (most recently used)
+		this.lruList.add(key);
+
 		// Update tag index
 		for (const tag of tags) {
 			if (!this.tagIndex.has(tag)) {
@@ -237,6 +245,7 @@ export class CacheService<T = unknown> extends EventEmitter {
 
 		this.cache.delete(key);
 		this.removeFromTagIndex(key);
+		this.lruList.remove(key);
 		this.stats.size -= entry.size;
 		this.stats.entries = this.cache.size;
 
@@ -399,6 +408,7 @@ export class CacheService<T = unknown> extends EventEmitter {
 		const count = this.cache.size;
 		this.cache.clear();
 		this.tagIndex.clear();
+		this.lruList = new LRUList<string>();
 		this.stats.size = 0;
 		this.stats.entries = 0;
 		this.emit("cache:cleared", { count });
@@ -448,26 +458,27 @@ export class CacheService<T = unknown> extends EventEmitter {
 	}
 
 	private evictLRU(requiredSpace: number): void {
-		const entries = Array.from(this.cache.entries());
-		entries.sort(
-			([, a], [, b]) => a.lastAccessedAt.getTime() - b.lastAccessedAt.getTime(),
-		);
-
 		let freedSpace = 0;
 		let count = 0;
 
-		for (const [key] of entries) {
-			if (
-				freedSpace >= requiredSpace &&
-				this.cache.size < this.options.maxEntries
-			) {
-				break;
-			}
+		while (
+			this.lruList.size > 0 &&
+			(freedSpace < requiredSpace || this.cache.size >= this.options.maxEntries)
+		) {
+			const evictedKey = this.lruList.evict();
+			if (evictedKey === undefined) break;
 
-			const entry = this.cache.get(key)!;
-			freedSpace += entry.size;
-			this.delete(key);
-			count++;
+			const entry = this.cache.get(evictedKey);
+			if (entry) {
+				freedSpace += entry.size;
+				// Use direct removal to avoid double lruList.remove (already evicted)
+				this.cache.delete(evictedKey);
+				this.removeFromTagIndex(evictedKey);
+				this.stats.size -= entry.size;
+				this.stats.entries = this.cache.size;
+				this.emit("cache:delete", { key: evictedKey });
+				count++;
+			}
 		}
 
 		this.stats.evictions += count;
@@ -624,6 +635,17 @@ export class CacheService<T = unknown> extends EventEmitter {
 					},
 				]),
 			);
+
+			// Rebuild LRU list from imported entries, ordered by lastAccessedAt
+			// (oldest first so the most recently accessed ends up at head)
+			this.lruList = new LRUList<string>();
+			const sortedEntries = Array.from(this.cache.entries()).sort(
+				([, a], [, b]) =>
+					a.lastAccessedAt.getTime() - b.lastAccessedAt.getTime(),
+			);
+			for (const [key] of sortedEntries) {
+				this.lruList.add(key);
+			}
 		}
 
 		if (data.tagIndex) {

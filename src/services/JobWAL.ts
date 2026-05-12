@@ -89,7 +89,10 @@ export class JobWAL {
 			);
 		} catch (err: any) {
 			// Non-fatal: the in-memory queue is still updated. Log and continue.
-			console.error(`[JobWAL] Failed to log ${event} for job ${job.id}:`, err.message);
+			console.error(
+				`[JobWAL] Failed to log ${event} for job ${job.id}:`,
+				err.message,
+			);
 		}
 	}
 
@@ -105,7 +108,8 @@ export class JobWAL {
 	 */
 	async replay(): Promise<Job[]> {
 		try {
-			const { rows } = await this.pool.query<{ data: Job }>(`
+			const { rows } = await this.pool.query<{ data: Job }>(
+				`
         SELECT DISTINCT ON (job_id)
           job_id,
           data
@@ -116,7 +120,9 @@ export class JobWAL {
           WHERE event = ANY($1)
         )
         ORDER BY job_id, id DESC
-      `, [TERMINAL_EVENTS]);
+      `,
+				[TERMINAL_EVENTS],
+			);
 
 			const jobs: Job[] = rows.map((r) => {
 				const job = r.data;
@@ -140,7 +146,10 @@ export class JobWAL {
 			console.log(`[JobWAL] Replayed ${jobs.length} surviving jobs ✓`);
 			return jobs;
 		} catch (err: any) {
-			console.error("[JobWAL] Replay failed — starting with empty queue:", err.message);
+			console.error(
+				"[JobWAL] Replay failed — starting with empty queue:",
+				err.message,
+			);
 			return [];
 		}
 	}
