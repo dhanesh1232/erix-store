@@ -10,7 +10,7 @@
  * as a sequence of immutable mutation rows.
  *
  * **SCHEMA:**
- *   erix_job_wal (
+ *   store_job_wal (
  *     id         BIGSERIAL PRIMARY KEY,
  *     job_id     TEXT NOT NULL,
  *     queue_name TEXT NOT NULL,
@@ -48,7 +48,7 @@ const TERMINAL_EVENTS: WalEvent[] = ["completed", "failed"];
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const CREATE_WAL_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS erix_job_wal (
+  CREATE TABLE IF NOT EXISTS store_job_wal (
     id          BIGSERIAL    PRIMARY KEY,
     job_id      TEXT         NOT NULL,
     queue_name  TEXT         NOT NULL,
@@ -56,8 +56,8 @@ const CREATE_WAL_TABLE_SQL = `
     data        JSONB        NOT NULL,
     recorded_at TIMESTAMPTZ  NOT NULL DEFAULT now()
   );
-  CREATE INDEX IF NOT EXISTS idx_erix_job_wal_job_id ON erix_job_wal (job_id);
-  CREATE INDEX IF NOT EXISTS idx_erix_job_wal_event  ON erix_job_wal (event);
+  CREATE INDEX IF NOT EXISTS idx_store_job_wal_job_id ON store_job_wal (job_id);
+  CREATE INDEX IF NOT EXISTS idx_store_job_wal_event  ON store_job_wal (event);
 `;
 
 // ─── JobWAL ──────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export class JobWAL {
 	async log(event: WalEvent, job: Job): Promise<void> {
 		try {
 			await this.pool.query(
-				`INSERT INTO erix_job_wal (job_id, queue_name, event, data)
+				`INSERT INTO store_job_wal (job_id, queue_name, event, data)
          VALUES ($1, $2, $3, $4)`,
 				[job.id, job.queueName, event, JSON.stringify(job)],
 			);
@@ -113,10 +113,10 @@ export class JobWAL {
         SELECT DISTINCT ON (job_id)
           job_id,
           data
-        FROM erix_job_wal
+        FROM store_job_wal
         WHERE job_id NOT IN (
           SELECT DISTINCT job_id
-          FROM erix_job_wal
+          FROM store_job_wal
           WHERE event = ANY($1)
         )
         ORDER BY job_id, id DESC
@@ -164,7 +164,7 @@ export class JobWAL {
 		try {
 			const cutoff = new Date(Date.now() - retentionMs);
 			const { rowCount } = await this.pool.query(
-				`DELETE FROM erix_job_wal
+				`DELETE FROM store_job_wal
          WHERE event = ANY($1)
            AND recorded_at < $2`,
 				[TERMINAL_EVENTS, cutoff],

@@ -55,9 +55,9 @@ describe("BatchedJobWAL", () => {
 			await wal.initialize();
 			expect(pool.query).toHaveBeenCalledTimes(1);
 			const sql = pool.query.mock.calls[0][0] as string;
-			expect(sql).toContain("CREATE TABLE IF NOT EXISTS erix_job_wal");
+			expect(sql).toContain("CREATE TABLE IF NOT EXISTS store_job_wal");
 			expect(sql).toContain(
-				"CREATE INDEX IF NOT EXISTS idx_erix_job_wal_job_id",
+				"CREATE INDEX IF NOT EXISTS idx_store_job_wal_job_id",
 			);
 		});
 	});
@@ -122,7 +122,7 @@ describe("BatchedJobWAL", () => {
 			const [sql, params] = pool.query.mock.calls[0];
 
 			// Single INSERT with two value rows
-			expect(sql).toContain("INSERT INTO erix_job_wal");
+			expect(sql).toContain("INSERT INTO store_job_wal");
 			expect(sql).toContain("($1, $2, $3, $4), ($5, $6, $7, $8)");
 
 			// Params: 4 per row × 2 rows = 8
@@ -285,7 +285,7 @@ describe("BatchedJobWAL", () => {
 			expect(pruned).toBe(5);
 			expect(pool.query).toHaveBeenCalledTimes(1);
 			const [sql, params] = pool.query.mock.calls[0];
-			expect(sql).toContain("DELETE FROM erix_job_wal");
+			expect(sql).toContain("DELETE FROM store_job_wal");
 			expect(params[0]).toEqual(["completed", "failed"]);
 		});
 	});

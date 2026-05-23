@@ -91,7 +91,7 @@ async function bootstrap(): Promise<void> {
 
 		// Ensure metering table exists (idempotent)
 		await pool.query(`
-      CREATE TABLE IF NOT EXISTS erix_usage_events (
+      CREATE TABLE IF NOT EXISTS store_usage_events (
         id          BIGSERIAL PRIMARY KEY,
         tenant_id   TEXT NOT NULL,
         event_type  TEXT NOT NULL,

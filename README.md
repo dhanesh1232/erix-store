@@ -493,9 +493,9 @@ const store = new ErixClient({
 
 | Layer | Table | Purpose |
 |-------|-------|---------|
-| Job WAL | `erix_job_wal` | Per-mutation log for zero job loss on crash |
-| Snapshots | `erix_snapshots` | Full state dump every 5 minutes (keeps last 5) |
-| Usage Events | `erix_usage_events` | Per-tenant metering data |
+| Job WAL | `store_job_wal` | Per-mutation log for zero job loss on crash |
+| Snapshots | `store_snapshots` | Full state dump every 5 minutes (keeps last 5) |
+| Usage Events | `store_usage_events` | Per-tenant metering data |
 
 All tables are auto-created on first boot. No migrations needed.
 
@@ -557,7 +557,7 @@ curl https://your-erix-store.onrender.com/health
 
 ```sql
 SELECT saved_at, NOW() - saved_at AS age
-FROM erix_snapshots
+FROM store_snapshots
 ORDER BY saved_at DESC LIMIT 1;
 ```
 

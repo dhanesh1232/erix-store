@@ -130,7 +130,7 @@ export class UsageMeter {
 					for (const [event, count] of Object.entries(events)) {
 						if (count === 0) continue;
 						await client.query(
-							`INSERT INTO erix_usage_events (tenant_id, event_type, count)
+							`INSERT INTO store_usage_events (tenant_id, event_type, count)
 							 VALUES ($1, $2, $3)
 							 ON CONFLICT DO NOTHING`,
 							[tenantId, event, count],
