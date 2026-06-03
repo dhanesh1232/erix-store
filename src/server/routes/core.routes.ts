@@ -3,38 +3,59 @@ import type { ErixStore } from "../../core/Store.js";
 import { getTenantKey } from "../middleware/auth.js";
 
 export const createCoreRoutes = (store: ErixStore) => {
-	const router = Router();
+  const router = Router();
 
-	router.post("/set", (req, res) => {
-		const { key, value, ttl } = req.body;
-		const tenantKey = getTenantKey(req.tenantId, key);
+  router.post("/set", (req, res, next) => {
+    try {
+      const { key, value, ttl } = req.body;
+      const tenantKey = getTenantKey(req.tenantId, key);
 
-		store.strings.set(tenantKey, value);
-		if (ttl) {
-			store.ttlManager.set(tenantKey, ttl);
-		}
-		res.json({ success: true });
-	});
+      // Lazy-expire then reserve. If the key is expired-but-not-yet-swept,
+      // reserveKey deletes the stale value and clears the registry first,
+      // so this SET can take over even if the prior type was different.
+      store.reserveKey(tenantKey, "string");
 
-	router.get("/get", (req, res) => {
-		const { key } = req.query;
-		const tenantKey = getTenantKey(req.tenantId, key as string);
+      store.strings.set(tenantKey, value);
+      if (ttl) {
+        store.ttlManager.set(tenantKey, ttl);
+      }
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
 
-		if (store.isExpired(tenantKey)) {
-			return res.json({ value: null });
-		}
+  router.get("/get", (req, res, next) => {
+    try {
+      const { key } = req.query;
+      const tenantKey = getTenantKey(req.tenantId, key as string);
 
-		res.json({ value: store.strings.get(tenantKey) });
-	});
+      if (store.isExpired(tenantKey)) {
+        return res.json({ value: null });
+      }
 
-	router.delete("/del", (req, res) => {
-		const { key } = req.body;
-		const tenantKey = getTenantKey(req.tenantId, key);
+      // Reads must respect type — GET on a list returns WRONGTYPE, not null.
+      store.types.assertType(tenantKey, "string");
 
-		store.strings.delete(tenantKey);
-		store.ttlManager.delete(tenantKey);
-		res.json({ success: true });
-	});
+      res.json({ value: store.strings.get(tenantKey) });
+    } catch (err) {
+      next(err);
+    }
+  });
 
-	return router;
+  router.delete("/del", (req, res, next) => {
+    try {
+      const { key } = req.body;
+      const tenantKey = getTenantKey(req.tenantId, key);
+
+      // DEL is type-agnostic. The store routes the delete
+      // to the owning sub-store and clears the type registry + TTL.
+      const existed = store.deleteKey(tenantKey);
+      res.json({ success: true, existed });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
 };

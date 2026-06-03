@@ -4,14 +4,14 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 # Copy manifests first for layer caching
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# CHANGE: Using 'npm install' instead of 'npm ci' if you don't have a lockfile
-RUN npm install --ignore-scripts
+# Install pnpm and dependencies
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
 # Copy source and build
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # ─── Stage 2: Production ───────────────────────────────────────────────────────
 FROM node:20-slim AS runner
@@ -21,16 +21,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Copy manifests and install prod-only deps
-COPY package*.json ./
-
-# CHANGE: Using 'npm install' here as well for consistency
-RUN npm install --omit=dev --ignore-scripts
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
 
-# Render's health check expects the process to listen on PORT
+# Cloud Run injects PORT env var (default 6399)
 EXPOSE 6399
 
-# Use exec form so SIGTERM reaches the Node process (not a shell)
+# Use exec form so SIGTERM reaches the Node process (graceful shutdown)
 CMD ["node", "dist/index.js"]

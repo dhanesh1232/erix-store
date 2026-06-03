@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env
+.env.*
+.kiro
+.vscode
+tests
+worker
+client
+*.md
+*.tgz
+coverage
+.nyc_output

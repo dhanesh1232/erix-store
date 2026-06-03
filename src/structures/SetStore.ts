@@ -1,37 +1,65 @@
+import { setMemberCost } from "../core/byteCost.js";
+import type { MemoryAccountant } from "../core/MemoryAccountant.js";
+
 export class SetStore {
 	private data = new Map<string, Set<string>>();
 
+	constructor(private readonly accountant?: MemoryAccountant) {}
+
 	sadd(key: string, value: string): number {
-		if (!this.data.has(key)) {
-			this.data.set(key, new Set());
+		this.accountant?.touch(key);
+		let set = this.data.get(key);
+		if (!set) {
+			set = new Set();
+			this.data.set(key, set);
 		}
-		// biome-ignore lint/style/noNonNullAssertion: key is guaranteed by the has() guard above
-		const set = this.data.get(key)!;
-		const sizeBefore = set.size;
+		if (set.has(value)) return 0;
+		this.accountant?.tryCharge(setMemberCost(value));
 		set.add(value);
-		return set.size - sizeBefore;
+		return 1;
 	}
 
 	smembers(key: string): string[] {
 		const set = this.data.get(key);
-		return set ? Array.from(set) : [];
+		if (!set) return [];
+		this.accountant?.touch(key);
+		return Array.from(set);
 	}
 
 	sismember(key: string, value: string): boolean {
 		const set = this.data.get(key);
-		return set ? set.has(value) : false;
+		if (!set) return false;
+		this.accountant?.touch(key);
+		return set.has(value);
 	}
 
 	srem(key: string, value: string): number {
 		const set = this.data.get(key);
 		if (!set) return 0;
-		const deleted = set.delete(value) ? 1 : 0;
+		if (!set.has(value)) return 0;
+		this.accountant?.credit(setMemberCost(value));
+		set.delete(value);
 		if (set.size === 0) this.data.delete(key);
-		return deleted;
+		return 1;
+	}
+
+	scard(key: string): number {
+		return this.data.get(key)?.size ?? 0;
+	}
+
+	getSet(key: string): Set<string> | undefined {
+		return this.data.get(key);
 	}
 
 	delete(key: string) {
+		const set = this.data.get(key);
+		if (!set) return;
+		for (const v of set) this.accountant?.credit(setMemberCost(v));
 		this.data.delete(key);
+	}
+
+	keys(): IterableIterator<string> {
+		return this.data.keys();
 	}
 
 	export() {
@@ -43,9 +71,14 @@ export class SetStore {
 	}
 
 	import(data: Record<string, string[]>) {
+		for (const set of this.data.values()) {
+			for (const v of set) this.accountant?.credit(setMemberCost(v));
+		}
 		this.data = new Map();
 		for (const [key, members] of Object.entries(data)) {
-			this.data.set(key, new Set(members));
+			const set = new Set(members);
+			this.data.set(key, set);
+			for (const v of set) this.accountant?.forceCharge(setMemberCost(v));
 		}
 	}
 }

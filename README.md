@@ -26,16 +26,16 @@ A single-threaded, in-memory data structure server — like Redis, but with buil
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Your Application                          │
+│                    Your Application                         │
 │                                                             │
-│  ┌────────────────────┐      ┌──────────────────────┐      │
-│  │  @ecodrix/         │      │  @ecodrix/           │      │
-│  │  erix-client       │      │  erix-worker         │      │
-│  │  (like Redis)      │      │  (like BullMQ)       │      │
-│  └────────┬───────────┘      └──────────┬───────────┘      │
+│  ┌────────────────────┐      ┌──────────────────────┐       │
+│  │  @ecodrix/         │      │  @ecodrix/           │       │
+│  │  erix-client       │      │  erix-worker         │       │
+│  │  (like Redis)      │      │  (like BullMQ)       │       │
+│  └────────┬───────────┘      └──────────┬───────────┘       │
 │           │                             │                   │
 └───────────┼─────────────────────────────┼───────────────────┘
-            │  HTTP / WebSocket (msgpack)  │
+            │  HTTP / WebSocket (msgpack) │
             └──────────────┬──────────────┘
                            ▼
                 ┌──────────────────────┐
@@ -52,11 +52,11 @@ A single-threaded, in-memory data structure server — like Redis, but with buil
 
 **Packages:**
 
-| Package | Role | Analogy |
-|---------|------|---------|
-| `erix-store` | Server process | Redis server |
-| `@ecodrix/erix-client` | Client SDK (v1.1.0) | Redis client |
-| `@ecodrix/erix-worker` | Job processor | BullMQ Worker |
+| Package                | Role                | Analogy        |
+| ---------------------- | ------------------- | -------------- |
+| `erix-store`           | Server process      | ECODrIx server |
+| `@ecodrix/erix-client` | Client SDK (v1.1.0) | ECODrIx client |
+| `@ecodrix/erix-worker` | Job processor       | BullMQ Worker  |
 
 ---
 
@@ -107,45 +107,53 @@ pnpm add @ecodrix/erix-client @ecodrix/erix-worker
 ```
 
 ```typescript
-import { ErixClient } from '@ecodrix/erix-client'
-import { ErixWorker } from '@ecodrix/erix-worker'
+import { ErixClient } from "@ecodrix/erix-client";
+import { ErixWorker } from "@ecodrix/erix-worker";
 
 const client = new ErixClient({
-  baseUrl: 'https://erix-store.onrender.com',
+  baseUrl: "https://erix-store.onrender.com",
   apiKey: process.env.ERIX_API_KEY!,
-  tenantId: 'org_abc123',
-})
+  tenantId: "org_abc123",
+});
 
 // Store data
-await client.set('user:42', { name: 'Dhanesh', role: 'admin' }, 3600)
-const user = await client.get<User>('user:42')
+await client.set("user:42", { name: "Dhanesh", role: "admin" }, 3600);
+const user = await client.get<User>("user:42");
 
 // Enqueue a job
-await client.queueV2.push('email-queue', { to: 'user@example.com', subject: 'Welcome!' })
+await client.queueV2.push("email-queue", {
+  to: "user@example.com",
+  subject: "Welcome!",
+});
 
 // Process jobs
-const worker = new ErixWorker(client, 'email-queue', async (job) => {
-  await sendEmail(job.data.to, job.data.subject)
-})
-worker.run()
+const worker = new ErixWorker(client, "email-queue", async (job) => {
+  await sendEmail(job.data.to, job.data.subject);
+});
+worker.run();
 ```
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string (Supabase, Neon, Render Postgres) |
-| `ERIX_API_KEY` | Yes | Shared secret for `x-erix-key` header authentication |
-| `PORT` | No | Listen port (default: `6399`) |
-| `NODE_ENV` | No | `development` or `production` |
-| `GOOGLE_API_KEY` | No | Enables semantic cache (Google embeddings) |
+| Variable            | Required | Description                                                                                                                                                                                                                                           |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`      | Yes      | PostgreSQL connection string (Supabase, Neon, Render Postgres). Also used by the per-org key validator to look up `ecodrix_organizations.api_key`.                                                                                                    |
+| `ERIX_API_KEY`      | Yes      | Legacy shared secret for `x-erix-key` header authentication. Still accepted while migrating to per-org keys.                                                                                                                                          |
+| `ERIX_INTERNAL_KEY` | No       | Comma-separated list of internal `eint_…` keys for service-to-service auth. Whitespace around commas is trimmed; empty entries are dropped. Allows the caller to impersonate any `x-tenant-id`. External customers use per-org `erix_…` keys instead. |
+| `PORT`              | No       | Listen port (default: `6399`)                                                                                                                                                                                                                         |
+| `NODE_ENV`          | No       | `development` or `production`                                                                                                                                                                                                                         |
+| `GOOGLE_API_KEY`    | No       | Enables semantic cache (Google embeddings)                                                                                                                                                                                                            |
 
 Generate an API key:
 
 ```bash
+# External per-org key (stored in ecodrix_organizations.api_key)
 node -e "console.log('erix_' + require('crypto').randomBytes(32).toString('hex'))"
+
+# Internal service-to-service key (added to ERIX_INTERNAL_KEY)
+node -e "console.log('eint_' + require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
@@ -161,18 +169,19 @@ pnpm add @ecodrix/erix-client
 ### Initialization
 
 ```typescript
-import { ErixClient } from '@ecodrix/erix-client'
+import { ErixClient } from "@ecodrix/erix-client";
 
 const store = new ErixClient({
   baseUrl: process.env.ERIX_STORE_URL!,
   apiKey: process.env.ERIX_API_KEY!,
-  tenantId: 'org_abc123',
-  transport: 'auto',  // 'auto' | 'ws' | 'http' (default: 'auto')
+  tenantId: "org_abc123",
+  transport: "auto", // 'auto' | 'ws' | 'http' (default: 'auto')
   timeoutMs: 5000,
-})
+});
 ```
 
 Transport modes:
+
 - **`auto`** (default): WebSocket first, falls back to HTTP if unavailable
 - **`ws`**: WebSocket only (binary MessagePack, lowest latency)
 - **`http`**: HTTP only (original behavior, maximum compatibility)
@@ -212,47 +221,51 @@ sub.close()
 
 ```typescript
 // Enqueue with options
-const job = await store.queueV2.push('scrape-queue', data, {
-  priority: 10,       // 1-10, higher = first
-  delayMs: 5000,      // run after 5s
-  maxAttempts: 5,     // retry up to 5 times
-  clientCode: 'ACME', // tenant fairness
-})
+const job = await store.queueV2.push("scrape-queue", data, {
+  priority: 10, // 1-10, higher = first
+  delayMs: 5000, // run after 5s
+  maxAttempts: 5, // retry up to 5 times
+  clientCode: "ACME", // tenant fairness
+});
 
 // Claim next job
-const claimed = await store.queueV2.claim<T>('scrape-queue')
+const claimed = await store.queueV2.claim<T>("scrape-queue");
 
 // Complete / Fail
-await store.queueV2.complete(job.id, result)
-await store.queueV2.fail(job.id, 'Something went wrong')
+await store.queueV2.complete(job.id, result);
+await store.queueV2.fail(job.id, "Something went wrong");
 
 // Progress + Heartbeat
-await store.queueV2.updateProgress(job.id, 75)
-await store.queueV2.heartbeat(job.id)
+await store.queueV2.updateProgress(job.id, 75);
+await store.queueV2.heartbeat(job.id);
 
 // SSE subscription (real-time push)
-const sub = store.queueV2.subscribe('scrape-queue', {
-  onAdded: (job) => console.log('New job:', job.id),
-  onCompleted: (job) => console.log('Done:', job.id),
-  onFailed: (job) => console.error('Failed:', job.id),
-})
+const sub = store.queueV2.subscribe("scrape-queue", {
+  onAdded: (job) => console.log("New job:", job.id),
+  onCompleted: (job) => console.log("Done:", job.id),
+  onFailed: (job) => console.error("Failed:", job.id),
+});
 ```
 
 ### Cache (LRU, tag-based, stale-while-revalidate)
 
 ```typescript
-await store.cache.set('user:42', userData, { ttl: 3600000, tags: ['users'] })
-const cached = await store.cache.get<User>('user:42')
-await store.cache.del('user:42')
-await store.cache.invalidateByTag('users')
-const stats = await store.cache.stats()
+await store.cache.set("user:42", userData, { ttl: 3600000, tags: ["users"] });
+const cached = await store.cache.get<User>("user:42");
+await store.cache.del("user:42");
+await store.cache.invalidateByTag("users");
+const stats = await store.cache.stats();
 ```
 
 ### Semantic Cache (AI-powered similarity search)
 
 ```typescript
-await store.semantic.set('faq:pricing', 'What are your pricing plans?', pricingData)
-const result = await store.semantic.search('How much does it cost?')
+await store.semantic.set(
+  "faq:pricing",
+  "What are your pricing plans?",
+  pricingData,
+);
+const result = await store.semantic.search("How much does it cost?");
 // → { value: pricingData, similarity: 0.97, isExact: false }
 ```
 
@@ -260,16 +273,16 @@ const result = await store.semantic.search('How much does it cost?')
 
 ```typescript
 const results = await store.pipeline([
-  { method: 'POST', path: '/core/set', body: { key: 'a', value: '1' } },
-  { method: 'POST', path: '/core/set', body: { key: 'b', value: '2' } },
-  { method: 'GET', path: '/core/get', params: { key: 'a' } },
-])
+  { method: "POST", path: "/core/set", body: { key: "a", value: "1" } },
+  { method: "POST", path: "/core/set", body: { key: "b", value: "2" } },
+  { method: "GET", path: "/core/get", params: { key: "a" } },
+]);
 ```
 
 ### Cleanup
 
 ```typescript
-store.close() // Close transport, release resources
+store.close(); // Close transport, release resources
 ```
 
 ---
@@ -285,31 +298,36 @@ pnpm add @ecodrix/erix-client @ecodrix/erix-worker
 ### Usage
 
 ```typescript
-import { ErixClient } from '@ecodrix/erix-client'
-import { ErixWorker } from '@ecodrix/erix-worker'
+import { ErixClient } from "@ecodrix/erix-client";
+import { ErixWorker } from "@ecodrix/erix-worker";
 
 const client = new ErixClient({
   baseUrl: process.env.ERIX_STORE_URL!,
   apiKey: process.env.ERIX_API_KEY!,
-  tenantId: 'my-app',
-})
+  tenantId: "my-app",
+});
 
-const worker = new ErixWorker(client, 'email-queue', async (job) => {
-  await sendEmail(job.data.to, job.data.subject)
-}, {
-  pollIntervalMs: 5000,        // poll every 5s (default)
-  maxConcurrentJobs: 10,       // parallel jobs (default)
-  heartbeatIntervalMs: 30000,  // heartbeat every 30s (default)
-  autoStart: false,            // call worker.run() manually
-})
+const worker = new ErixWorker(
+  client,
+  "email-queue",
+  async (job) => {
+    await sendEmail(job.data.to, job.data.subject);
+  },
+  {
+    pollIntervalMs: 5000, // poll every 5s (default)
+    maxConcurrentJobs: 10, // parallel jobs (default)
+    heartbeatIntervalMs: 30000, // heartbeat every 30s (default)
+    autoStart: false, // call worker.run() manually
+  },
+);
 
-worker.run()
+worker.run();
 
 // Graceful shutdown (also handles SIGTERM/SIGINT automatically)
-await worker.stop()
+await worker.stop();
 
 // Statistics
-const stats = worker.getStats()
+const stats = worker.getStats();
 // { totalJobsProcessed, successfulJobs, failedJobs, currentConcurrency, isRunning, activeJobs }
 ```
 
@@ -455,16 +473,19 @@ erix-store supports binary WebSocket connections on the same port as HTTP. Frame
 ### Frame Format
 
 **Request:**
+
 ```json
 { "id": 1, "method": "GET", "path": "/core/get", "params": { "key": "foo" } }
 ```
 
 **Response:**
+
 ```json
 { "id": 1, "status": 200, "data": { "value": "bar" } }
 ```
 
 **Pipeline (batch):**
+
 ```json
 { "id": 100, "pipeline": true, "requests": [ ...frames ] }
 → { "id": 100, "pipeline": true, "responses": [ ...responses ] }
@@ -484,18 +505,18 @@ const store = new ErixClient({
   baseUrl: process.env.ERIX_STORE_URL!,
   apiKey: process.env.ERIX_API_KEY!,
   tenantId: req.user.orgId,
-})
+});
 ```
 
 ---
 
 ## Persistence Model
 
-| Layer | Table | Purpose |
-|-------|-------|---------|
-| Job WAL | `store_job_wal` | Per-mutation log for zero job loss on crash |
-| Snapshots | `store_snapshots` | Full state dump every 5 minutes (keeps last 5) |
-| Usage Events | `store_usage_events` | Per-tenant metering data |
+| Layer        | Table                | Purpose                                        |
+| ------------ | -------------------- | ---------------------------------------------- |
+| Job WAL      | `store_job_wal`      | Per-mutation log for zero job loss on crash    |
+| Snapshots    | `store_snapshots`    | Full state dump every 5 minutes (keeps last 5) |
+| Usage Events | `store_usage_events` | Per-tenant metering data                       |
 
 All tables are auto-created on first boot. No migrations needed.
 
@@ -533,9 +554,9 @@ docker run -p 6399:6399 \
 
 ### Cost estimates
 
-| Tier | Render | Database | Total |
-|------|--------|----------|-------|
-| Dev | Free ($0) | Supabase Free | $0/mo |
+| Tier | Render       | Database           | Total  |
+| ---- | ------------ | ------------------ | ------ |
+| Dev  | Free ($0)    | Supabase Free      | $0/mo  |
 | Prod | Starter ($7) | Supabase Pro ($25) | $32/mo |
 
 ### Internal networking (recommended for production)
@@ -573,26 +594,54 @@ Alert if age > 10 minutes.
 
 ## Security
 
-| Layer | Mechanism |
-|-------|-----------|
-| Service auth | `x-erix-key` header on all routes (401 without it) |
-| Tenant isolation | `x-tenant-id` header — keys namespaced server-side |
-| Data at rest | PostgreSQL with TLS (Supabase/Render enforce by default) |
-| Network | Deploy as internal/private service — never expose to internet |
+| Layer            | Mechanism                                                     |
+| ---------------- | ------------------------------------------------------------- |
+| Service auth     | `x-erix-key` header on all routes (401 without it)            |
+| Tenant isolation | `x-tenant-id` header — keys namespaced server-side            |
+| Data at rest     | PostgreSQL with TLS (Supabase/Render enforce by default)      |
+| Network          | Deploy as internal/private service — never expose to internet |
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `401 Unauthorized` | Wrong/missing `ERIX_API_KEY` | Ensure both services share the same key |
-| `400 Missing X-Tenant-Id` | Client not sending `tenantId` | Check `ErixClientOptions.tenantId` |
-| Data lost after restart | `DATABASE_URL` not set | Verify DSN and that tables exist |
-| Slow responses | Free tier cold starts | Upgrade to Render Starter or add keep-alive ping |
-| `EADDRINUSE: 6399` | Port conflict | `kill $(lsof -ti:6399)` or change `PORT` in `.env` |
-| Jobs not processing | Worker not running | Check `worker.getStats()` and `client.ping()` |
-| Jobs timing out | Long-running without heartbeat | Send `client.queueV2.heartbeat(job.id)` every 15-30s |
+| Symptom                   | Cause                          | Fix                                                  |
+| ------------------------- | ------------------------------ | ---------------------------------------------------- |
+| `401 Unauthorized`        | Wrong/missing `ERIX_API_KEY`   | Ensure both services share the same key              |
+| `400 Missing X-Tenant-Id` | Client not sending `tenantId`  | Check `ErixClientOptions.tenantId`                   |
+| Data lost after restart   | `DATABASE_URL` not set         | Verify DSN and that tables exist                     |
+| Slow responses            | Free tier cold starts          | Upgrade to Render Starter or add keep-alive ping     |
+| `EADDRINUSE: 6399`        | Port conflict                  | `kill $(lsof -ti:6399)` or change `PORT` in `.env`   |
+| Jobs not processing       | Worker not running             | Check `worker.getStats()` and `client.ping()`        |
+| Jobs timing out           | Long-running without heartbeat | Send `client.queueV2.heartbeat(job.id)` every 15-30s |
+
+---
+
+## Imports & path aliases
+
+The server package supports two import styles in `src/`:
+
+```ts
+// 1. The `@/*` alias, resolved to `src/*`
+import { TypeRegistry } from "@/core/TypeRegistry";
+
+// 2. Extensionless TypeScript imports
+import { globToRegExp } from "./server/glob";
+
+// 3. Classic `.js` extension (still valid, used widely in the existing tree)
+import { ErixStore } from "./core/Store.js";
+```
+
+All three resolve through the same toolchain:
+
+| Path         | Tool                                    | How it resolves `@/...` and extensionless                                                    |
+| ------------ | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `pnpm type`  | `tsc --noEmit`                          | `tsconfig.json#paths` + `moduleResolution: Bundler`                                          |
+| `pnpm build` | `tsc && tsc-alias --resolve-full-paths` | `tsc-alias` rewrites `@/...` to relative paths and stamps `.js` so `dist/` is plain Node ESM |
+| `pnpm test`  | `vitest`                                | `vite-tsconfig-paths` plugin reads the same `paths`                                          |
+| `pnpm dev`   | `tsx watch src/index.ts`                | `tsx` resolves both natively                                                                 |
+
+The client SDK at `client/` is a separately published package and stays on `NodeNext` resolution with explicit `.js` extensions — its consumers expect that shape.
 
 ---
 

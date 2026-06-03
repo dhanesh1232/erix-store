@@ -82,6 +82,25 @@ export class LRUList<K> {
 	}
 
 	/**
+	 * Iterate keys from least- to most-recently used.
+	 *
+	 * Useful for eviction policies that need to find the first key matching
+	 * some predicate (e.g. volatile-lru: "first key with a TTL").
+	 *
+	 * The iteration is safe against concurrent `remove(key)` of the
+	 * currently-yielded key — the iterator caches `node.prev` before
+	 * yielding so a removal does not corrupt traversal.
+	 */
+	*tailToHead(): IterableIterator<K> {
+		let node = this.tail;
+		while (node) {
+			const next = node.prev;
+			yield node.key;
+			node = next;
+		}
+	}
+
+	/**
 	 * Detach a node from its current position in the list.
 	 */
 	private detach(node: DLLNode<K>): void {
