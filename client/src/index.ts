@@ -10,7 +10,7 @@
  * import { ErixClient } from '@ecodrix/erix-client'
  *
  * const store = new ErixClient({
- *   baseUrl: 'https://erix-store.onrender.com',
+ *   baseUrl: 'https://store.ecodrix.com',
  *   apiKey: process.env.ERIX_API_KEY!,
  *   tenantId: 'org_abc123',
  * })
@@ -44,7 +44,7 @@ export type JsonValue =
   | { [key: string]: JsonValue };
 
 export interface ErixClientOptions {
-  /** Full URL of the deployed erix-store instance, e.g. https://api.erix.ecodrix.com */
+  /** Full URL of the deployed erix-store instance, e.g. https://store.ecodrix.com */
   baseUrl: string;
   /** Shared secret generated at deploy time — must match ERIX_API_KEY on the server */
   apiKey: string;

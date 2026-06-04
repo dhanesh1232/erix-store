@@ -1,6 +1,6 @@
 {
   "name": "@ecodrix/erix-worker",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "Job queue worker for ERIX Store. Auto-polling job processor with heartbeat, retry, and graceful shutdown.",
   "type": "module",
   "main": "./dist/index.js",

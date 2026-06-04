@@ -1,12 +1,12 @@
 /**
  * Test erix-store production via @ecodrix/erix-client
- * against https://api.erix.ecodrix.com
+ * against https://store.ecodrix.com
  */
 
 import { ErixClient } from "@ecodrix/erix-client";
 
 const store = new ErixClient({
-  baseUrl: "https://api.erix.ecodrix.com",
+  baseUrl: "https://store.ecodrix.com",
   apiKey: "ecod_live_sk_a5c4f3262dda08ef82918632fcc366b1e8fddd7756383197",
   tenantId: "DHANESHM_E16CD5",
   transport: "http",
@@ -15,7 +15,7 @@ const store = new ErixClient({
 
 async function main() {
   console.log("─── Production ERIX Store Test ───");
-  console.log("  URL: https://api.erix.ecodrix.com");
+  console.log("  URL: https://store.ecodrix.com");
   console.log("  Tenant: DHANESHM_E16CD5");
   console.log("");
 
