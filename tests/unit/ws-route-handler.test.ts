@@ -143,4 +143,43 @@ describe("WebSocket Route Handler (createRouteHandler)", () => {
 		expect(results[1].data).toEqual({ id: 2, delayed: 5 });
 		expect(results[2].data).toEqual({ id: 3, delayed: 1 });
 	});
+
+	it("forwards handshake auth to the Express layer as headers", async () => {
+		const app = express();
+		app.use(express.json());
+		app.get("/whoami", (req, res) => {
+			res.json({
+				key: req.headers["x-erix-key"],
+				tenant: req.headers["x-tenant-id"],
+			});
+		});
+
+		const handler = createRouteHandler(app);
+		const result = await handler("GET", "/whoami", undefined, undefined, {
+			key: "eint_secret",
+			tenantId: "org_123",
+		});
+
+		expect(result.status).toBe(200);
+		expect(result.data).toEqual({ key: "eint_secret", tenant: "org_123" });
+	});
+
+	it("prefers handshake auth over per-frame params", async () => {
+		const app = express();
+		app.use(express.json());
+		app.get("/whoami", (req, res) => {
+			res.json({ tenant: req.headers["x-tenant-id"] });
+		});
+
+		const handler = createRouteHandler(app);
+		const result = await handler(
+			"GET",
+			"/whoami",
+			undefined,
+			{ "x-tenant-id": "spoofed" },
+			{ key: "eint_secret", tenantId: "org_real" },
+		);
+
+		expect(result.data).toEqual({ tenant: "org_real" });
+	});
 });

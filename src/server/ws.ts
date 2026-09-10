@@ -15,9 +15,21 @@
  *   - Malformed frame handling (status 400, connection kept open)
  */
 
-import type { Server as HttpServer } from "node:http";
+import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { pack, unpack } from "msgpackr";
 import { type WebSocket, WebSocketServer } from "ws";
+
+/**
+ * Auth context lifted from the WebSocket upgrade handshake. A WS
+ * connection authenticates once at connect time; every frame on that
+ * socket inherits this context. Threaded through to the route handler
+ * so the Express auth middleware sees the same `(key, tenant)` a real
+ * HTTP request would carry in headers.
+ */
+export interface WsAuthContext {
+	key: string;
+	tenantId: string;
+}
 
 // ─── Frame Interfaces ──────────────────────────────────────────────────────────
 
@@ -69,6 +81,7 @@ export type RouteHandler = (
 	path: string,
 	body?: unknown,
 	params?: Record<string, string>,
+	auth?: WsAuthContext,
 ) => Promise<{ status: number; data: unknown }>;
 
 // ─── Frame Validation ──────────────────────────────────────────────────────────
@@ -109,11 +122,17 @@ export function attachWebSocket(
 ): WebSocketServer {
 	const wss = new WebSocketServer({ server });
 
-	wss.on("connection", (ws: WebSocket) => {
+	wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+		// Lift auth from the upgrade handshake once; the client sends
+		// `x-erix-key` / `x-tenant-id` as connection headers, not per-frame.
+		const auth: WsAuthContext = {
+			key: (req.headers["x-erix-key"] as string | undefined) ?? "",
+			tenantId: (req.headers["x-tenant-id"] as string | undefined) ?? "",
+		};
 		ws.on(
 			"message",
 			(data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
-				void handleMessage(ws, data, isBinary, routeHandler);
+				void handleMessage(ws, data, isBinary, routeHandler, auth);
 			},
 		);
 	});
@@ -130,6 +149,7 @@ async function handleMessage(
 	data: Buffer | ArrayBuffer | Buffer[],
 	_isBinary: boolean,
 	routeHandler: RouteHandler,
+	auth: WsAuthContext,
 ): Promise<void> {
 	// Convert to Buffer for msgpackr
 	let buffer: Buffer;
@@ -159,13 +179,13 @@ async function handleMessage(
 
 	// Check if it's a pipeline frame
 	if (isPipelineFrame(decoded)) {
-		await handlePipeline(ws, decoded, routeHandler);
+		await handlePipeline(ws, decoded, routeHandler, auth);
 		return;
 	}
 
 	// Check if it's a single request frame
 	if (isValidFrame(decoded)) {
-		await handleSingleRequest(ws, decoded, routeHandler);
+		await handleSingleRequest(ws, decoded, routeHandler, auth);
 		return;
 	}
 
@@ -189,6 +209,7 @@ async function handleSingleRequest(
 	ws: WebSocket,
 	frame: WsFrame,
 	routeHandler: RouteHandler,
+	auth: WsAuthContext,
 ): Promise<void> {
 	try {
 		const result = await routeHandler(
@@ -196,6 +217,7 @@ async function handleSingleRequest(
 			frame.path,
 			frame.body,
 			frame.params,
+			auth,
 		);
 		const response: WsResponse = {
 			id: frame.id,
@@ -223,6 +245,7 @@ async function handlePipeline(
 	ws: WebSocket,
 	frame: WsPipelineFrame,
 	routeHandler: RouteHandler,
+	auth: WsAuthContext,
 ): Promise<void> {
 	// Validate each request in the pipeline
 	const invalidIndex = frame.requests.findIndex((r) => !isValidFrame(r));
@@ -245,6 +268,7 @@ async function handlePipeline(
 					req.path,
 					req.body,
 					req.params,
+					auth,
 				);
 				return {
 					id: req.id,

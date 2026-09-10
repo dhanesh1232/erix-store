@@ -11,7 +11,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import type { Express, Request, Response } from "express";
-import type { RouteHandler } from "./ws.js";
+import type { RouteHandler, WsAuthContext } from "./ws.js";
 
 /** Type for chunk data in response write/end methods */
 type ResponseChunk = string | Buffer | Uint8Array;
@@ -33,6 +33,7 @@ export function createRouteHandler(app: Express): RouteHandler {
     path: string,
     body?: unknown,
     params?: Record<string, string>,
+    auth?: WsAuthContext,
   ): Promise<{ status: number; data: unknown }> => {
     return new Promise((resolve) => {
       // Build query string from params
@@ -50,10 +51,14 @@ export function createRouteHandler(app: Express): RouteHandler {
       req.url = url;
       req.headers = {
         "content-type": "application/json",
-        // WebSocket connections carry auth from the upgrade handshake.
-        // The key and tenant are passed as params by the WS client.
-        "x-erix-key": params?.["x-erix-key"] ?? process.env.ERIX_API_KEY ?? "",
-        "x-tenant-id": params?.["x-tenant-id"] ?? "ws-default",
+        // WebSocket connections carry auth from the upgrade handshake
+        // (lifted into `auth` by ws.ts). Fall back to per-frame params and
+        // finally the shared env key so existing tests and any legacy
+        // param-based callers keep working.
+        "x-erix-key":
+          auth?.key || params?.["x-erix-key"] || process.env.ERIX_API_KEY || "",
+        "x-tenant-id":
+          auth?.tenantId || params?.["x-tenant-id"] || "ws-default",
       };
 
       // If there's a body, we need to make it readable

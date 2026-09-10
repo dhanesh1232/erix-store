@@ -43,9 +43,39 @@ export async function createPgPool(databaseUrl: string): Promise<Pool> {
       : undefined,
   });
 
-  await pool.query(CREATE_TABLE_SQL);
-  console.log("[Persistence] Snapshots table ready ✓");
-  return pool;
+  // Retry the initial connectivity probe with backoff. On a fresh VM boot the
+  // cloud-sql-proxy sidecar (compose `depends_on: condition: service_started`)
+  // may not be accepting connections yet — failing fast here would bubble up to
+  // the bootstrap `catch` and `process.exit(1)`, crash-looping the container so
+  // it never becomes healthy and every dependent (ecodrix-jobs) aborts. Waiting
+  // for the DB internally is exactly what the compose comment promises.
+  const maxAttempts = Number(process.env.PG_CONNECT_RETRIES ?? 30);
+  const delayMs = Number(process.env.PG_CONNECT_RETRY_DELAY_MS ?? 2_000);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await pool.query(CREATE_TABLE_SQL);
+      console.log(
+        `[Persistence] Snapshots table ready ✓ (attempt ${attempt}/${maxAttempts})`,
+      );
+      return pool;
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[Persistence] Postgres not ready (attempt ${attempt}/${maxAttempts}): ${msg} — retrying in ${delayMs}ms`,
+      );
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  await pool.end().catch(() => {});
+  const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new Error(
+    `[Persistence] Could not connect to Postgres after ${maxAttempts} attempts: ${reason}`,
+  );
 }
 
 // ─── PersistenceManager ───────────────────────────────────────────────────────
