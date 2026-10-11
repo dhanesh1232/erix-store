@@ -1,6 +1,11 @@
 packages:
   - "client"
   - "worker"
+# pnpm 11 rejects deps published <24h ago. Our own packages are published from
+# this repo and consumed immediately (worker → client), so exempt our scope only;
+# third-party deps keep the supply-chain age gate.
+minimumReleaseAgeExclude:
+  - "@ecodrix/*"
 allowBuilds:
   esbuild: false
   msgpackr-extract: false

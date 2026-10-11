@@ -530,38 +530,29 @@ All tables are auto-created on first boot. No migrations needed.
 
 ## Deployment
 
-### Docker (Render, AWS, etc.)
+### Production (infra VM)
 
-The included `Dockerfile` builds a multi-stage Node.js 20 image. The `render.yaml` provides a one-click Render Blueprint.
+erix-store runs single-instance on the `ecodrix-infra` VM via docker-compose
+(see `../infra/vps`). Caddy serves it at `https://store.ecodrix.com`; workers
+reach it internally at `http://erix-store:6399`.
 
 ```bash
-# Build locally
-docker build -t erix-store .
+bash deploy.sh                        # build + push :latest (and a timestamp tag) to GCR
+cd ../infra/vps && bash deploy.sh     # VM: docker compose pull + up -d
+curl https://store.ecodrix.com/health
+```
 
-# Run
+Rollback: repoint `:latest` at an older timestamp tag, then re-run `infra/vps/deploy.sh`.
+
+### Docker (local)
+
+```bash
+docker build -t erix-store .
 docker run -p 6399:6399 \
   -e DATABASE_URL=postgresql://... \
   -e ERIX_API_KEY=erix_... \
   erix-store
 ```
-
-### Render deployment
-
-1. Push to GitHub
-2. Connect repo on [render.com/blueprints](https://render.com/blueprints)
-3. Set environment variables in dashboard
-4. Health check path: `/health`
-
-### Cost estimates
-
-| Tier | Render       | Database           | Total  |
-| ---- | ------------ | ------------------ | ------ |
-| Dev  | Free ($0)    | Supabase Free      | $0/mo  |
-| Prod | Starter ($7) | Supabase Pro ($25) | $32/mo |
-
-### Internal networking (recommended for production)
-
-Set erix-store visibility to **Private** on Render. Other services reach it at `http://erix-store:6399` via Render's private network.
 
 ---
 
@@ -570,7 +561,7 @@ Set erix-store visibility to **Private** on Render. Other services reach it at `
 ### Health check
 
 ```bash
-curl https://your-erix-store.onrender.com/health
+curl https://store.ecodrix.com/health
 # → { "status": "ok", "uptime": 3421.5 }
 ```
 
@@ -688,7 +679,7 @@ erix-store/
 │   ├── pbt/
 │   └── integration/
 ├── Dockerfile
-├── render.yaml
+├── deploy.sh
 ├── vitest.config.ts
 └── package.json
 ```
