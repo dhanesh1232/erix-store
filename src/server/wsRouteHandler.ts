@@ -28,91 +28,90 @@ type ResponseChunk = string | Buffer | Uint8Array;
  * @returns A RouteHandler compatible with attachWebSocket
  */
 export function createRouteHandler(app: Express): RouteHandler {
-  return async (
-    method: string,
-    path: string,
-    body?: unknown,
-    params?: Record<string, string>,
-    auth?: WsAuthContext,
-  ): Promise<{ status: number; data: unknown }> => {
-    return new Promise((resolve) => {
-      // Build query string from params
-      const queryString = params
-        ? `?${new URLSearchParams(params).toString()}`
-        : "";
-      const url = `${path}${queryString}`;
+	return async (
+		method: string,
+		path: string,
+		body?: unknown,
+		params?: Record<string, string>,
+		auth?: WsAuthContext,
+	): Promise<{ status: number; data: unknown }> => {
+		return new Promise((resolve) => {
+			// Build query string from params
+			const queryString = params
+				? `?${new URLSearchParams(params).toString()}`
+				: "";
+			const url = `${path}${queryString}`;
 
-      // Create a minimal socket (not connected to anything)
-      const socket = new Socket();
+			// Create a minimal socket (not connected to anything)
+			const socket = new Socket();
 
-      // Create synthetic IncomingMessage
-      const req = new IncomingMessage(socket);
-      req.method = method.toUpperCase();
-      req.url = url;
-      req.headers = {
-        "content-type": "application/json",
-        // WebSocket connections carry auth from the upgrade handshake
-        // (lifted into `auth` by ws.ts). Fall back to per-frame params and
-        // finally the shared env key so existing tests and any legacy
-        // param-based callers keep working.
-        "x-erix-key":
-          auth?.key || params?.["x-erix-key"] || process.env.ERIX_API_KEY || "",
-        "x-tenant-id":
-          auth?.tenantId || params?.["x-tenant-id"] || "ws-default",
-      };
+			// Create synthetic IncomingMessage
+			const req = new IncomingMessage(socket);
+			req.method = method.toUpperCase();
+			req.url = url;
+			req.headers = {
+				"content-type": "application/json",
+				// WebSocket connections carry auth from the upgrade handshake
+				// (lifted into `auth` by ws.ts), else per-frame params. Never a
+				// server-side env key: a keyless client must be rejected, not run
+				// as the platform tenant.
+				"x-erix-key": auth?.key || params?.["x-erix-key"] || "",
+				"x-tenant-id":
+					auth?.tenantId || params?.["x-tenant-id"] || "ws-default",
+			};
 
-      // If there's a body, we need to make it readable
-      if (body !== undefined && body !== null) {
-        const bodyStr = JSON.stringify(body);
-        req.headers["content-length"] = Buffer.byteLength(bodyStr).toString();
-        // Push body data into the readable stream
-        req.push(bodyStr);
-        req.push(null); // Signal end of stream
-      } else {
-        req.headers["content-length"] = "0";
-        req.push(null);
-      }
+			// If there's a body, we need to make it readable
+			if (body !== undefined && body !== null) {
+				const bodyStr = JSON.stringify(body);
+				req.headers["content-length"] = Buffer.byteLength(bodyStr).toString();
+				// Push body data into the readable stream
+				req.push(bodyStr);
+				req.push(null); // Signal end of stream
+			} else {
+				req.headers["content-length"] = "0";
+				req.push(null);
+			}
 
-      // Create synthetic ServerResponse
-      const res = new ServerResponse(req);
+			// Create synthetic ServerResponse
+			const res = new ServerResponse(req);
 
-      // Capture the response data
-      let responseBody = "";
-      let statusCode = 200;
+			// Capture the response data
+			let responseBody = "";
+			let statusCode = 200;
 
-      res.write = ((chunk: ResponseChunk, ..._args: unknown[]): boolean => {
-        if (chunk) {
-          responseBody += typeof chunk === "string" ? chunk : chunk.toString();
-        }
-        return true;
-      }) as typeof res.write;
+			res.write = ((chunk: ResponseChunk, ..._args: unknown[]): boolean => {
+				if (chunk) {
+					responseBody += typeof chunk === "string" ? chunk : chunk.toString();
+				}
+				return true;
+			}) as typeof res.write;
 
-      res.end = ((
-        chunk?: ResponseChunk,
-        ..._args: unknown[]
-      ): ServerResponse => {
-        if (chunk) {
-          responseBody += typeof chunk === "string" ? chunk : chunk.toString();
-        }
-        statusCode = res.statusCode;
+			res.end = ((
+				chunk?: ResponseChunk,
+				..._args: unknown[]
+			): ServerResponse => {
+				if (chunk) {
+					responseBody += typeof chunk === "string" ? chunk : chunk.toString();
+				}
+				statusCode = res.statusCode;
 
-        // Parse the response body
-        let data: unknown;
-        try {
-          data = responseBody ? JSON.parse(responseBody) : null;
-        } catch {
-          data = responseBody || null;
-        }
+				// Parse the response body
+				let data: unknown;
+				try {
+					data = responseBody ? JSON.parse(responseBody) : null;
+				} catch {
+					data = responseBody || null;
+				}
 
-        // Clean up the socket
-        socket.destroy();
+				// Clean up the socket
+				socket.destroy();
 
-        resolve({ status: statusCode, data });
-        return res;
-      }) as typeof res.end;
+				resolve({ status: statusCode, data });
+				return res;
+			}) as typeof res.end;
 
-      // Route through Express (synthetic req/res are compatible with Express types)
-      app(req as Request, res as Response);
-    });
-  };
+			// Route through Express (synthetic req/res are compatible with Express types)
+			app(req as Request, res as Response);
+		});
+	};
 }

@@ -23,6 +23,7 @@ import { createRouteHandler } from "../../src/server/wsRouteHandler.js";
 import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-ttl";
 const API_KEY = "ttl-test-key";
@@ -57,7 +58,7 @@ describe("Passive TTL expiry across all read routes", () => {
     const app = createApp(store, pubsub, rateLimiter, {
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   });
 
   afterEach(() => {

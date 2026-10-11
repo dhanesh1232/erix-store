@@ -21,6 +21,7 @@ import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { SlowLog } from "../../src/services/SlowLog.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-slow";
 const OTHER = "tenant-other";
@@ -57,7 +58,7 @@ describe("/tx/exec — SLOWLOG", () => {
       slowlog,
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   });
 
   afterEach(() => {
@@ -180,7 +181,7 @@ describe("SLOWLOG when not wired in", () => {
     const app = createApp(store, pubsub, rateLimiter, {
       authValidator: createTestValidator(API_KEY),
     });
-    const handler = createRouteHandler(app);
+    const handler = withKey(createRouteHandler(app), API_KEY);
 
     const tx = await callAs(handler, TENANT, "POST", "/tx/exec", {
       commands: [{ name: "SLOWLOG", args: ["GET"] }],

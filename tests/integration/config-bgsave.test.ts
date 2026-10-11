@@ -28,6 +28,7 @@ import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { SlowLog } from "../../src/services/SlowLog.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const ADMIN = "admin-tenant";
 const REGULAR = "regular-tenant";
@@ -88,7 +89,7 @@ describe("CONFIG GET/SET — admin gating", () => {
       bgsave: opts.bgsave,
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   };
 
   beforeEach(() => {
@@ -232,7 +233,7 @@ describe("BGSAVE", () => {
       bgsave: opts.bgsave,
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   };
 
   it("invokes the registered callback and returns 'Background saving started'", async () => {

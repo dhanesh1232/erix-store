@@ -33,6 +33,7 @@ import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { SlowLog } from "../../src/services/SlowLog.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-aof";
 const ADMIN = "admin-tenant";
@@ -83,7 +84,7 @@ function buildBundle(opts: { adminTenantId?: string } = {}): Bundle {
     adminTenantId: opts.adminTenantId,
     authValidator: createTestValidator(API_KEY),
   });
-  const handler = createRouteHandler(app);
+  const handler = withKey(createRouteHandler(app), API_KEY);
 
   return {
     store,
@@ -328,7 +329,7 @@ describe("BGREWRITEAOF", () => {
       authValidator: createTestValidator(API_KEY),
       // no aof
     });
-    const handler = createRouteHandler(app);
+    const handler = withKey(createRouteHandler(app), API_KEY);
 
     try {
       const tx = await callAs(handler, ADMIN, "POST", "/tx/exec", {

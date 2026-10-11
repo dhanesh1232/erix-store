@@ -20,6 +20,7 @@ import { PriorityQueue } from "../../src/services/PriorityQueue.js";
 import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-q";
 const OTHER = "tenant-other";
@@ -55,7 +56,7 @@ describe("/q/* (Redis-style priority queue routes)", () => {
       queue,
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   });
 
   afterEach(() => {

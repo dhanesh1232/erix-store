@@ -15,6 +15,7 @@ import { PriorityQueue } from "../../src/services/PriorityQueue.js";
 import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-tx";
 const OTHER = "tenant-other";
@@ -50,7 +51,7 @@ describe("/tx/exec — MULTI/EXEC route", () => {
       queue,
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   });
 
   afterEach(() => {

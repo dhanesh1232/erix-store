@@ -21,6 +21,7 @@ import { createRouteHandler } from "../../src/server/wsRouteHandler.js";
 import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-ps";
 const OTHER = "tenant-other";
@@ -54,7 +55,7 @@ describe("/pubsub/* — publish + introspection", () => {
     const app = createApp(store, pubsub, rateLimiter, {
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   });
 
   afterEach(() => {

@@ -15,6 +15,7 @@ import { createRouteHandler } from "../../src/server/wsRouteHandler.js";
 import { PubSubService } from "../../src/services/PubSub.js";
 import { RateLimiterService } from "../../src/services/RateLimiter.js";
 import { createTestValidator } from "../helpers/testValidator.js";
+import { withKey } from "../helpers/withKey.js";
 
 const TENANT = "tenant-mem";
 const API_KEY = "memory-test-key";
@@ -45,7 +46,7 @@ describe("Memory cap (P2.1) end-to-end", () => {
     const app = createApp(store, pubsub, rateLimiter, {
       authValidator: createTestValidator(API_KEY),
     });
-    handler = createRouteHandler(app);
+    handler = withKey(createRouteHandler(app), API_KEY);
   };
 
   beforeEach(() => {

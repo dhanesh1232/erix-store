@@ -17,6 +17,15 @@
 
 import type { Pool } from "pg";
 
+/**
+ * Jobs still scheduled for the future (a Flow "wait 5 days" step). Their WAL
+ * rows are the only copy that survives a restart, so age-based pruning must
+ * skip them until they are due.
+ */
+const FUTURE_JOBS = `SELECT job_id FROM store_job_wal
+           WHERE event IN ('enqueued', 'retry')
+             AND (data->>'runAt')::timestamptz > now()`;
+
 export interface RetentionConfig {
 	/** WAL terminal rows retention in hours. Default: 24. */
 	walTerminalRetentionHours: number;
@@ -95,7 +104,9 @@ export class DataRetentionService {
 				Date.now() - this.config.walHardLimitDays * 24 * 60 * 60 * 1000,
 			);
 			const { rowCount: hardPruned } = await this.pool.query(
-				`DELETE FROM store_job_wal WHERE recorded_at < $1`,
+				`DELETE FROM store_job_wal
+         WHERE recorded_at < $1
+           AND job_id NOT IN (${FUTURE_JOBS})`,
 				[hardCutoff],
 			);
 			results.walPruned += hardPruned ?? 0;
@@ -111,7 +122,8 @@ export class DataRetentionService {
            AND job_id NOT IN (
              SELECT DISTINCT job_id FROM store_job_wal
              WHERE event IN ('completed', 'failed')
-           )`,
+           )
+           AND job_id NOT IN (${FUTURE_JOBS})`,
 				[orphanCutoff],
 			);
 			results.orphansPruned = orphanPruned ?? 0;
