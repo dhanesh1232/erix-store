@@ -6,8 +6,8 @@
  *
  * Replaces the legacy single-shared-secret check (`ERIX_API_KEY`) with a
  * two-lane validator that distinguishes internal callers (your own
- * server/worker fleet) from external customers signing in with a key
- * minted in their `ecodrix_organizations` row.
+ * server/worker fleet) from external customers signing in with a
+ * workspace key (`erix_store_…`) minted in `ecodrix_api_keys`.
  *
  * Key prefixes
  * ------------
@@ -15,9 +15,10 @@
  *     comma-separated list in `ERIX_INTERNAL_KEY`. Internal callers may
  *     impersonate any tenant by setting `x-tenant-id` to whatever they
  *     need (audited upstream by the calling service).
- *   - `erix_` — External. Looked up in `ecodrix_organizations.api_key`.
- *     The supplied tenant identifier MUST equal the row's
- *     `client_code`, and the org's `status` MUST be `active`.
+ *   - `erix_` — External. Looked up by SHA-256 hash in `ecodrix_api_keys`
+ *     (the server's one key store): active, not revoked, not expired, and
+ *     granting the `store` scope. The supplied tenant identifier MUST equal
+ *     the org's `client_code`, and the org's `status` MUST be `active`.
  *
  * Caching
  * -------
@@ -29,7 +30,7 @@
  * the request pipeline lives in `auth.ts` (next task).
  */
 
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { Pool } from "pg";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ export type KeyValidationFailureCode =
   | "INVALID_EXTERNAL_KEY"
   | "TENANT_MISMATCH"
   | "ORG_SUSPENDED"
+  | "INSUFFICIENT_SCOPE"
   | "DB_ERROR";
 
 export interface KeyValidationFailure {
@@ -124,7 +126,18 @@ interface OrgRow {
   id: string;
   client_code: string;
   status: string | null;
+  scope: string;
+  scopes: string[] | null;
 }
+
+/** Same digest the server stores (`AuthKey.hash`). */
+const hashKey = (raw: string) => createHash("sha256").update(raw).digest("hex");
+
+/** The key may use the store: its own scope, or a granted `store` / `*`. */
+const grantsStore = (row: OrgRow) =>
+  [row.scope, ...(row.scopes ?? [])].some(
+    (g) => g === "store" || g === "*" || g.startsWith("store:"),
+  );
 
 interface CacheEntry {
   context: ValidatedContext;
@@ -205,10 +218,7 @@ export class KeyValidator {
     let result: KeyValidationResult;
     if (apiKey.startsWith(INTERNAL_KEY_PREFIX)) {
       result = this.validateInternal(apiKey, clientCode);
-    } else if (
-      apiKey.startsWith(EXTERNAL_KEY_PREFIX) ||
-      apiKey.startsWith("ecod_live_sk_")
-    ) {
+    } else if (apiKey.startsWith(EXTERNAL_KEY_PREFIX)) {
       result = await this.validateExternal(apiKey, clientCode);
     } else {
       result = {
@@ -275,11 +285,15 @@ export class KeyValidator {
     let row: OrgRow | undefined;
     try {
       const { rows } = await this.pool.query<OrgRow>(
-        `SELECT id, client_code, status
-				 FROM ecodrix_organizations
-				 WHERE api_key = $1
+        `SELECT o.id, o.client_code, o.status, k.scope, k.scopes
+				 FROM ecodrix_api_keys k
+				 JOIN ecodrix_organizations o ON o.id = k.org_id
+				 WHERE k.key_hash = $1
+				   AND k.is_active
+				   AND k.revoked_at IS NULL
+				   AND (k.expires_at IS NULL OR k.expires_at > now())
 				 LIMIT 1`,
-        [apiKey],
+        [hashKey(apiKey)],
       );
       row = rows[0];
     } catch (err) {
@@ -298,6 +312,14 @@ export class KeyValidator {
         status: 401,
         code: "INVALID_EXTERNAL_KEY",
         message: "Unauthorized: Invalid API Key",
+      };
+    }
+    if (!grantsStore(row)) {
+      return {
+        ok: false,
+        status: 403,
+        code: "INSUFFICIENT_SCOPE",
+        message: "This API key does not grant access to the store",
       };
     }
     if (row.client_code !== clientCode) {

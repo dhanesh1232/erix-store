@@ -8,9 +8,9 @@
  *
  *   1. Internal key valid — `eint_…` key in the internal list with any
  *      tenantId returns `kind: "internal"` and echoes the tenantId.
- *   2. External key valid — `erix_…` key matching a row in
- *      `ecodrix_organizations` with matching `client_code` and
- *      `status === "active"` returns `kind: "external"` plus orgId.
+ *   2. External key valid — `erix_…` key whose SHA-256 matches an active
+ *      `ecodrix_api_keys` row granting `store`, with matching `client_code`
+ *      and `status === "active"`, returns `kind: "external"` plus orgId.
  *   3. External wrong tenantId — DB row found but `client_code`
  *      mismatch → 403 TENANT_MISMATCH.
  *   4. External suspended org — DB row found, code matches, but
@@ -25,6 +25,7 @@
  * enough — no real Postgres needed.
  */
 
+import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { KeyValidator } from "../../src/server/middleware/keyValidator.js";
@@ -82,7 +83,7 @@ describe("KeyValidator", () => {
   it("accepts an external erix_ key when the org row matches and is active", async () => {
     const pool = createMockPool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active" }],
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active", scope: "store", scopes: [] }],
     });
     const validator = makeValidator(pool);
 
@@ -95,16 +96,25 @@ describe("KeyValidator", () => {
       orgId: ORG_ID,
     });
     expect(pool.query).toHaveBeenCalledTimes(1);
-    // Sanity-check the query was parameterised with the apiKey, not
-    // concatenated into the SQL string.
-    const [, params] = pool.query.mock.calls[0];
-    expect(params).toEqual([EXTERNAL_KEY]);
+    // Only the key's hash is sent to the database, as a parameter.
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("ecodrix_api_keys");
+    expect(params).toEqual([createHash("sha256").update(EXTERNAL_KEY).digest("hex")]);
+  });
+
+  it("rejects a valid key that doesn't grant the store scope (403 INSUFFICIENT_SCOPE)", async () => {
+    const pool = createMockPool();
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active", scope: "crm", scopes: [] }],
+    });
+    const result = await makeValidator(pool).validate(EXTERNAL_KEY, CLIENT_CODE);
+    expect(result).toMatchObject({ ok: false, status: 403, code: "INSUFFICIENT_SCOPE" });
   });
 
   it("rejects an external key when the supplied tenantId differs from client_code (403 TENANT_MISMATCH)", async () => {
     const pool = createMockPool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active" }],
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active", scope: "store", scopes: [] }],
     });
     const validator = makeValidator(pool);
 
@@ -119,7 +129,7 @@ describe("KeyValidator", () => {
   it("rejects an external key whose org is suspended (403 ORG_SUSPENDED)", async () => {
     const pool = createMockPool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "suspended" }],
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "suspended", scope: "store", scopes: [] }],
     });
     const validator = makeValidator(pool);
 
@@ -148,7 +158,7 @@ describe("KeyValidator", () => {
   it("caches successful external lookups so a second validate() does not re-query the DB (within TTL)", async () => {
     const pool = createMockPool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active" }],
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active", scope: "store", scopes: [] }],
     });
     // Inject a controllable clock so we can assert TTL behavior
     // without relying on real wall-clock time. The second call
