@@ -102,6 +102,26 @@ describe("KeyValidator", () => {
     expect(params).toEqual([createHash("sha256").update(EXTERNAL_KEY).digest("hex")]);
   });
 
+  it("accepts a SaaS session token for a workspace the user belongs to", async () => {
+    const token = "a".repeat(64);
+    const pool = createMockPool();
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: ORG_ID, client_code: CLIENT_CODE, status: "active" }],
+    });
+    const result = await makeValidator(pool).validate(token, CLIENT_CODE);
+    expect(result).toEqual({ ok: true, kind: "external", tenantId: CLIENT_CODE, orgId: ORG_ID });
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("ecodrix_sessions");
+    expect(params).toEqual([createHash("sha256").update(token).digest("hex"), CLIENT_CODE]);
+  });
+
+  it("rejects a session token for a workspace the user isn't in (401)", async () => {
+    const pool = createMockPool();
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const result = await makeValidator(pool).validate("b".repeat(64), CLIENT_CODE);
+    expect(result).toMatchObject({ ok: false, status: 401 });
+  });
+
   it("rejects a valid key that doesn't grant the store scope (403 INSUFFICIENT_SCOPE)", async () => {
     const pool = createMockPool();
     pool.query.mockResolvedValueOnce({

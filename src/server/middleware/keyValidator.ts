@@ -15,6 +15,10 @@
  *     comma-separated list in `ERIX_INTERNAL_KEY`. Internal callers may
  *     impersonate any tenant by setting `x-tenant-id` to whatever they
  *     need (audited upstream by the calling service).
+ *   - 64 hex chars — a signed-in SaaS user's session token (what the SaaS
+ *     sends as its key). Valid when the session is active, not revoked,
+ *     not expired, and the user is a member of the workspace in
+ *     `x-tenant-id` — the same rule the server applies.
  *   - `erix_` — External. Looked up by SHA-256 hash in `ecodrix_api_keys`
  *     (the server's one key store): active, not revoked, not expired, and
  *     granting the `store` scope. The supplied tenant identifier MUST equal
@@ -130,7 +134,9 @@ interface OrgRow {
   scopes: string[] | null;
 }
 
-/** Same digest the server stores (`AuthKey.hash`). */
+const SESSION_TOKEN = /^[0-9a-f]{64}$/;
+
+/** Same digest the server stores (`AuthKey.hash`, session token hash). */
 const hashKey = (raw: string) => createHash("sha256").update(raw).digest("hex");
 
 /** The key may use the store: its own scope, or a granted `store` / `*`. */
@@ -218,6 +224,8 @@ export class KeyValidator {
     let result: KeyValidationResult;
     if (apiKey.startsWith(INTERNAL_KEY_PREFIX)) {
       result = this.validateInternal(apiKey, clientCode);
+    } else if (SESSION_TOKEN.test(apiKey)) {
+      result = await this.validateSession(apiKey, clientCode);
     } else if (apiKey.startsWith(EXTERNAL_KEY_PREFIX)) {
       result = await this.validateExternal(apiKey, clientCode);
     } else {
@@ -274,6 +282,56 @@ export class KeyValidator {
       };
     }
     return { ok: true, kind: "internal", tenantId: clientCode };
+  }
+
+  // ── Session lane (SaaS) ──────────────────────────────────────────────────
+
+  private async validateSession(
+    token: string,
+    clientCode: string,
+  ): Promise<KeyValidationResult> {
+    let row: OrgRow | undefined;
+    try {
+      const { rows } = await this.pool.query<OrgRow>(
+        `SELECT o.id, o.client_code, o.status
+				 FROM ecodrix_sessions s
+				 JOIN ecodrix_members m ON m.user_id = s.user_id
+				 JOIN ecodrix_organizations o ON o.id = m.org_id
+				 WHERE s.session_token_hash = $1
+				   AND s.is_active
+				   AND s.revoked_at IS NULL
+				   AND s.expires_at > now()
+				   AND o.client_code = $2
+				 LIMIT 1`,
+        [hashKey(token), clientCode],
+      );
+      row = rows[0];
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Database error";
+      return {
+        ok: false,
+        status: 500,
+        code: "DB_ERROR",
+        message: `Session lookup failed: ${message}`,
+      };
+    }
+    if (!row) {
+      return {
+        ok: false,
+        status: 401,
+        code: "INVALID_EXTERNAL_KEY",
+        message: "Unauthorized: session expired or not a member of this workspace",
+      };
+    }
+    if (row.status !== "active") {
+      return {
+        ok: false,
+        status: 403,
+        code: "ORG_SUSPENDED",
+        message: "Organization is suspended",
+      };
+    }
+    return { ok: true, kind: "external", tenantId: row.client_code, orgId: row.id };
   }
 
   // ── External lane ────────────────────────────────────────────────────────
