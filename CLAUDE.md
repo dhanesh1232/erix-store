@@ -58,7 +58,7 @@ This workspace already has the primitives. Reach for them before inventing:
   - External/dev auth → the shared **`externalAuth(scope)`** gate, not inline
     key checks.
   - Direct channel send → **`/infra/connect/send/{channel}`**. Fire an event →
-    **`/events/trigger`**. Define a trigger → **`/crm/custom-events`**. Don't
+    **`/events/trigger`**. Define a trigger → **`/product/flow/config/triggers`**. Don't
     add a parallel surface.
   - Frontend calls → the isomorphic **`@ecodrix/erix-api` SDK**, not bespoke
     fetches.

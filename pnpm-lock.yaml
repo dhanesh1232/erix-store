@@ -89,8 +89,8 @@ importers:
   worker:
     dependencies:
       '@ecodrix/erix-client':
-        specifier: ^1.4.1
-        version: 1.4.1
+        specifier: ^1.4.2
+        version: 1.4.2
     devDependencies:
       '@types/node':
         specifier: ^20.12.7
@@ -158,8 +158,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ecodrix/erix-client@1.4.1':
-    resolution: {integrity: sha512-3tTM7ZnaEp6eYQPzYKRlzhcBVTH9zYVF6dakWrA4Bn0xz/31NahtEaQ78fvZ+i6ixH6QHatw3hGdwQC/0mMHIw==}
+  '@ecodrix/erix-client@1.4.2':
+    resolution: {integrity: sha512-GhQPKU1sqPSPj6mLrCSTCVEQ+EfIpyPbGaWZnd8195MO5oqcw8aNSzdf859YPUkpjTCdtrNdk4rTgGJ+oHOF4Q==}
     engines: {node: '>=18'}
 
   '@esbuild/aix-ppc64@0.21.5':
@@ -1475,7 +1475,7 @@ snapshots:
   '@biomejs/cli-win32-x64@2.4.14':
     optional: true
 
-  '@ecodrix/erix-client@1.4.1':
+  '@ecodrix/erix-client@1.4.2':
     dependencies:
       msgpackr: 1.11.12
       ws: 8.20.0

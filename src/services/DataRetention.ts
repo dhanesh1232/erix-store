@@ -92,9 +92,15 @@ export class DataRetentionService {
 				Date.now() - this.config.walTerminalRetentionHours * 60 * 60 * 1000,
 			);
 			const { rowCount: terminalPruned } = await this.pool.query(
+				// Whole history of finished jobs (see BatchedJobWAL.prune): deleting only
+				// the terminal row made replay re-run the job.
 				`DELETE FROM store_job_wal
-         WHERE event IN ('completed', 'failed')
-           AND recorded_at < $1`,
+         WHERE job_id IN (
+           SELECT job_id FROM store_job_wal
+           GROUP BY job_id
+           HAVING max(recorded_at) < $1
+              AND (array_agg(event ORDER BY id DESC))[1] IN ('completed', 'failed')
+         )`,
 				[terminalCutoff],
 			);
 			results.walPruned += terminalPruned ?? 0;

@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { BinaryMaxHeap } from "../structures/BinaryHeap.js";
-import type { BatchedJobWAL } from "./BatchedJobWAL.js";
+import type { BatchedJobWAL, WalEvent } from "./BatchedJobWAL.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,20 @@ export class JobQueueV2 extends EventEmitter {
 
 	// ── Optional WAL ─────────────────────────────────────────────────────────
 	private wal?: BatchedJobWAL;
+	private walErrorLoggedAt = 0;
+
+	/**
+	 * Fire-and-forget WAL write. A failure (e.g. buffer full while Postgres is
+	 * down) must not crash the process as an unhandled rejection: the queue keeps
+	 * serving from memory and says, at most every 10 s, that durability is degraded.
+	 */
+	private walLog(event: WalEvent, job: Job): void {
+		this.wal?.log(event, job).catch((err: Error) => {
+			if (Date.now() - this.walErrorLoggedAt < 10_000) return;
+			this.walErrorLoggedAt = Date.now();
+			console.error(`[JobQueueV2] WAL write failed (${event}); jobs aren't durable until it recovers:`, err.message);
+		});
+	}
 
 	constructor(options: JobQueueOptions = {}, wal?: BatchedJobWAL) {
 		super();
@@ -148,7 +162,7 @@ export class JobQueueV2 extends EventEmitter {
 		}
 
 		// WAL: log before emitting so the event carries a persisted job
-		if (this.wal) void this.wal.log("enqueued", job);
+		this.walLog("enqueued", job);
 
 		this.emit("job:added", job);
 		return job;
@@ -210,7 +224,7 @@ export class JobQueueV2 extends EventEmitter {
 		);
 
 		this.addToActive(queueName, job);
-		if (this.wal) void this.wal.log("claimed", job);
+		this.walLog("claimed", job);
 		this.emit("job:active", job);
 		return job;
 	}
@@ -228,7 +242,7 @@ export class JobQueueV2 extends EventEmitter {
 		this.removeFromActive(job.queueName, job.id);
 		this.addToCompleted(job.queueName, job);
 
-		if (this.wal) void this.wal.log("completed", job);
+		this.walLog("completed", job);
 		this.emit("job:completed", job);
 		return true;
 	}
@@ -249,7 +263,7 @@ export class JobQueueV2 extends EventEmitter {
 			job.status = "delayed";
 			job.runAt = new Date(Date.now() + delay);
 			this.addToDelayed(job.queueName, job);
-			if (this.wal) void this.wal.log("retry", job);
+			this.walLog("retry", job);
 			this.emit("job:retry", job);
 		} else {
 			// Exhausted — terminal failure
@@ -260,7 +274,7 @@ export class JobQueueV2 extends EventEmitter {
 				this.addToDLQ(job.queueName, job);
 				this.emit("job:dlq", job);
 			}
-			if (this.wal) void this.wal.log("failed", job);
+			this.walLog("failed", job);
 			this.emit("job:failed", job);
 		}
 		return true;
@@ -325,7 +339,7 @@ export class JobQueueV2 extends EventEmitter {
 				job.failedAt = undefined;
 				jobs.splice(index, 1);
 				this.addToQueue(queueName, job);
-				if (this.wal) void this.wal.log("retry", job);
+				this.walLog("retry", job);
 				this.emit("job:retried", job);
 				return true;
 			}
@@ -344,7 +358,7 @@ export class JobQueueV2 extends EventEmitter {
 			job.failedAt = undefined;
 			this.removeFromDLQ(queueName, job.id);
 			this.addToQueue(queueName, job);
-			if (this.wal) void this.wal.log("retry", job);
+			this.walLog("retry", job);
 			count++;
 		}
 		this.emit("dlq:retried", { queueName, count });

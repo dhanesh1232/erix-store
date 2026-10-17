@@ -15,7 +15,7 @@
  * JobWAL.replay() → JobQueueV2.rebuildFromWAL().
  */
 
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import type { BatchedJobWAL } from "../services/BatchedJobWAL.js";
 import type { CacheService } from "../services/CacheService.js";
 import type { DistributedLockService } from "../services/DistributedLock.js";
@@ -124,10 +124,17 @@ export class PersistenceManager {
     }
   }
 
-  /** Serialize all non-queue in-memory state and write a snapshot row to Postgres. */
+  /**
+   * Serialize all non-queue in-memory state and write a snapshot row to Postgres.
+   * Never rejects: the auto-save timer fires it as `void`, and a connect timeout
+   * (Postgres stalled) used to escape as an unhandled rejection and kill the
+   * store, failing every enqueue until a restart. A failed save is logged; the
+   * next tick tries again.
+   */
   async save(): Promise<void> {
-    const client = await this.pool.connect();
+    let client: PoolClient | undefined;
     try {
+      client = await this.pool.connect();
       const snapshot: Record<string, unknown> = {
         store: this.store.exportAll(),
         rateLimits: this.rateLimiter.export(),
@@ -152,10 +159,10 @@ export class PersistenceManager {
       await client.query("COMMIT");
       console.log("[Persistence] Snapshot saved ✓");
     } catch (err) {
-      await client.query("ROLLBACK").catch(() => {});
+      await client?.query("ROLLBACK").catch(() => {});
       console.error("[Persistence] Snapshot save failed:", err);
     } finally {
-      client.release();
+      client?.release();
     }
   }
 

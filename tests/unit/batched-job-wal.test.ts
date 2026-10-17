@@ -288,5 +288,17 @@ describe("BatchedJobWAL", () => {
 			expect(sql).toContain("DELETE FROM store_job_wal");
 			expect(params[0]).toEqual(["completed", "failed"]);
 		});
+
+		it("deletes a finished job's whole history, not just its terminal row", async () => {
+			// Replay skips only jobs that still have a terminal row; leaving the
+			// enqueued/claimed rows made the job run again after a restart.
+			pool.query.mockResolvedValueOnce({ rowCount: 3 });
+			wal = new BatchedJobWAL(asPgPool(pool));
+			await wal.prune(60_000);
+			const [sql] = pool.query.mock.calls[0];
+			expect(sql).toMatch(/WHERE job_id IN \(/);
+			expect(sql).toMatch(/GROUP BY job_id/);
+			expect(sql).toMatch(/array_agg\(event ORDER BY id DESC\)\)\[1\] = ANY\(\$1\)/);
+		});
 	});
 });

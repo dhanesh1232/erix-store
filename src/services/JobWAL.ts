@@ -163,10 +163,17 @@ export class JobWAL {
 	async prune(retentionMs: number = 24 * 60 * 60 * 1000): Promise<number> {
 		try {
 			const cutoff = new Date(Date.now() - retentionMs);
+			// Delete a finished job's WHOLE history: replay skips only jobs that still have a
+			// terminal row, so pruning just that row made the job re-run after a restart.
+			// Only when the job's latest event is terminal (a re-queued job is kept).
 			const { rowCount } = await this.pool.query(
 				`DELETE FROM store_job_wal
-         WHERE event = ANY($1)
-           AND recorded_at < $2`,
+				 WHERE job_id IN (
+				   SELECT job_id FROM store_job_wal
+				   GROUP BY job_id
+				   HAVING max(recorded_at) < $2
+				      AND (array_agg(event ORDER BY id DESC))[1] = ANY($1)
+				 )`,
 				[TERMINAL_EVENTS, cutoff],
 			);
 			const pruned = rowCount ?? 0;
